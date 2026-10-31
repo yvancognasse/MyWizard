@@ -1,0 +1,125 @@
+{
+  "reviewedVersion": "10.76",
+  "sections": [
+    {
+      "id": "quick-start",
+      "title": "Quick start",
+      "paragraphs": [
+        "MyWizard is a local meeting assistant for Apple Silicon Macs running macOS 26 or later. It displays a floating transcript of system audio, with speaker labels, optional translation and read-aloud.",
+        "1. Open your meeting app and choose the spoken language and region in MyWizard. The selector offers 30 local transcription variants across Cantonese, Chinese, English, French, German, Italian, Japanese, Korean, Portuguese and Spanish. Choose the actual regional model; German (Switzerland) does not guarantee recognition of Swiss German dialects.",
+        "2. If you want your own voice in the final text file, turn on the microphone button. Check your microphone name in Preferences.",
+        "3. Optionally select a meeting with the calendar button, optionally choose a Codex project with the folder-plus button, then click **Start**. Allow the required macOS permissions. Play or join the meeting: system speech appears as it is recognized.",
+        "4. Click **Stop** when finished. MyWizard prepares the complete transcript and offers a filename. After the TXT file is saved successfully, the transcript clears automatically for the next meeting."
+      ]
+    },
+    {
+      "id": "permissions",
+      "title": "Permissions and first launch",
+      "paragraphs": [
+        "MyWizard needs permission for speech recognition and system audio recording. Microphone access is needed when recording your own voice. If access is denied, check **System Settings → Privacy & Security**, including Microphone, Speech Recognition and Screen & System Audio Recording, then reopen MyWizard if macOS requests it.",
+        "First use may download speech, translation and speaker models. The language selector includes supported downloadable speech models, not only models already installed. Language models download after Start if needed; after installation, transcription runs locally. Opening the main window prepares engines but does not start audio capture or download missing speech models.",
+        "Apple limits the number of reserved transcription languages (typically five on this Mac). When Start or an export needs another language, MyWizard makes room by releasing an unused language reservation. Languages used by a current transcription or export are protected. A released model may need to download again when selected later. Background preparation does not reserve a new language or remove an existing one. Your selected regional language is never silently replaced. Apple can share a backing model asset between regional choices; MyWizard keeps the locale you selected on the transcriber.",
+        "Calendar permission is optional and requested only when you open the calendar picker. You can record without selecting a calendar event."
+      ]
+    },
+    {
+      "id": "recording",
+      "title": "Record and stop a meeting",
+      "paragraphs": [
+        "**Start / Stop:** start a new capture or end the current one. The timer shows elapsed meeting time. The language selector is locked while capturing.",
+        "There is no manual Pause / Resume control or shortcut. To end capture, choose Stop and save the transcript. Finish or cancel the save dialog before using Start for a subsequent recording.",
+        "If an audio device disconnects or the system output changes format, MyWizard interrupts both captures with an explanation. No audio is captured during this interruption. Reconnect or select your device, then choose **Retry audio** in the interruption message. A failed retry leaves capture interrupted; you can retry again or choose Stop to export the text already captured.",
+        "MyWizard records system audio, so other audible applications can also appear in the transcript. Keep unrelated playback stopped when you want only meeting speech."
+      ]
+    },
+    {
+      "id": "microphone",
+      "title": "Microphone and speaker names",
+      "paragraphs": [
+        "The microphone button controls recording of your own voice in MyWizard. It does **not** mute or unmute Zoom, Teams or another meeting app. You can change this choice during a recording.",
+        "During capture, the live transcript shows system speech only. Your microphone speech is transcribed after Stop or Save and inserted chronologically into the final TXT export under your configured name. It is not read aloud.",
+        "Click a speaker heading to rename it, or edit the name under Preferences → Speakers. Voices from system audio are remembered automatically on this Mac once there are two sufficiently long, clear excerpts. A name you enter is saved with the voice when enough audio is available and can be recognized in later recordings, including after reopening MyWizard. There is no separate remember switch. Brief turns, similar voices, a different microphone and overlapping speech can prevent recognition or cause incorrect names. Uncertain matches keep a numbered speaker label. Calendar invitation names are suggestions, not proof of attendance.",
+        "Under Preferences → Speakers, saved names and the voice count show the local voice memory. Use the trash button beside a voice to forget that profile. **Forget saved voices** deletes all stored voice profiles and names from this memory, while keeping names in the current transcript. Voices already observed in that transcript are not immediately learned again; automatic learning resumes for the next recording. Clearing or exporting a transcript does not delete the voice memory. Your configured microphone name is saved separately; microphone speech is not enrolled in voice memory.",
+        "Voice profiles contain mathematical voice features and an optional name, stored in Application Support/MyWizard/voices-v1.json in your user Library. Profiles are processed locally and are not sent to a recognition service. First use may download an additional voice model. Voice memory is approximate, not identity verification. If the model or storage is unavailable, Preferences shows a message and normal transcription continues.",
+        "MyWizard filters microphone echo when preparing the export. Quiet overlapping speech and residual echo can remain ambiguous. Review important passages against your own notes before relying on speaker attribution."
+      ]
+    },
+    {
+      "id": "calendar",
+      "title": "Choose a calendar meeting",
+      "paragraphs": [
+        "Click the calendar button to choose a timed event from calendars synced with Apple Calendar. Use another date or Refresh if necessary. All-day events are excluded. Event cards cycle through different colors to help distinguish neighboring meetings; colors do not indicate calendar, status or availability. Selection is explicit, including when meetings overlap.",
+        "The meeting title appears above the transcript, followed by its date and start/end times in your Mac's local format and time zone. Events ending on another day also show the end date. The TXT heading and suggested export filename still use the meeting title alone. Invited people and the organizer are offered as suggestions when renaming a speaker. The selected meeting, Codex project (labelled **Projet Codex:**) and last project-copy result share one compact line below the toolbar. Hover over it to read the full details. **Clear meeting and project** (the circled × beside the project button) removes both current selections and the copy notice while preserving the transcript and recording.",
+        "MyWizard reads events locally and does not change them. If permission is denied, enable MyWizard in **System Settings → Privacy & Security → Calendars**, then choose Refresh. Clearing the transcript removes the selected meeting. Use **Clear meeting and project** (the circled × beside the project button) to remove both selections and the copy notice for the current recording. The transcript, audio, export folder, calendar events and Codex projects are kept. The button is available when a selection or copy notice is present, outside export preparation and saving."
+      ]
+    },
+    {
+      "id": "translation",
+      "title": "Translate and read aloud",
+      "paragraphs": [
+        "Open **Preferences** with the sliders button. Under Reading & translation, **Display in** chooses the on-screen text language; **Read in** chooses the spoken output language. Each list offers **38 local translation variants**, including regional choices, plus **Original language**. Both settings are saved independently.",
+        "Click the speaker button to read from the current passage. During capture, reading follows new system speech automatically. Speaker headings and microphone speech are not read. Speech uses the default Apple voice rate; there is no speed control.",
+        "While MyWizard reads during capture, original system playback is muted to avoid two voices at once, but system audio remains captured. Click the speaker button again to stop reading and restore original audio. An audio interruption or stopping capture also stops reading.",
+        "Display translation does not change the source-language TXT export. If a translation is pending or fails, source text can remain visible. Installed language models are required for translation.",
+        "Translation languages and the 30 transcription variants are independent lists. Regional choices are preserved in translation requests, but Apple must support the source/target pair. Text already in the same language and script is kept without dialect rewriting. Simplified and Traditional Chinese are kept distinct; direct conversion between these scripts is not supported by Apple Translation on this Mac. Reading prefers installed voices for the selected region and can reuse compatible voices if necessary. An available translation model does not guarantee a regional reading voice; add voices in System Settings → Accessibility → Read & Speak if needed. German output is standard German, not Swiss dialect."
+      ]
+    },
+    {
+      "id": "navigation",
+      "title": "Find text and follow the live transcript",
+      "paragraphs": [
+        "Click **Find** or press **⌘F** in the transcript window. Search matches the full displayed transcript, including paragraphs outside the visible area and any displayed translation, ignoring case and accents. Matches are highlighted; the selected occurrence is orange.",
+        "Use Enter or **⌘G** for the next match and **⇧⌘G** for the previous match. Searching pauses automatic following so you can read the result.",
+        "Scrolling up also pauses live following. Click **Latest** to return to the newest text and resume following, or scroll back to the bottom. Live display updates are grouped in short batches to keep long transcripts responsive; recording and read-aloud continue independently."
+      ]
+    },
+    {
+      "id": "export",
+      "title": "Save and find your transcript",
+      "paragraphs": [
+        "Click **Stop** or the save button (**⌘S**) to prepare the complete transcript. Save during capture first stops the recording. Preparation preserves system transcript wording and labels, processes microphone speech if enabled, and combines the final text in time order.",
+        "Wait for preparation to finish, then choose a filename and save the UTF-8 TXT file. Progress shows preparation work, not remaining time; 100% does not mean the text file has already been saved. Finish or cancel the save dialog before starting another recording.",
+        "Use **Choose Folder…** under **Preferences → Text exports** to select or change the destination. The selected folder is remembered. The folder button opens the export destination in Finder. Existing filenames are suggested as you type, and replacing a file requires confirmation.",
+        "With a selected calendar event, its title is suggested. Otherwise, the filename uses the meeting's start date and time. The file includes source-language speech and speaker names. Changing Display in does not translate the export.",
+        "To add a second copy to an existing local Codex project, use **Choose Codex project** (the folder-plus button beside Calendar) before recording or before saving. Search the list, select a project, or choose **Remove project** to export only to your usual folder. After the usual TXT save succeeds, MyWizard copies the same file to the project’s **Notes** folder. Existing notes are never replaced: duplicate names receive a numbered suffix. The project selection resets after a successful export or Clear. **Clear meeting and project** removes both the calendar and project selections together, without clearing the transcript.",
+        "The project picker reads the local desktop project catalog saved by Codex. Projects created only in its background service are excluded until registered in the desktop application. Use **Refresh** after changing projects. Cards cycle through colors to distinguish projects; colors do not indicate status or availability and stay the same while filtering the list. Only local projects with an available folder on this Mac can be selected; cloud and remote projects are not supported. For projects with several roots, the destination shown is the first root. The copy is a file in the project folder, without creating a chat or uploading a project source.",
+        "To add a project, click **Add project…**, choose a folder and click **Add in Codex**. Use **New Folder** in the chooser if needed. Codex opens to register the folder and may ask for folder access. Complete that step, then return to MyWizard; choose **Check again** if necessary. MyWizard selects the project only after finding its folder in Codex’s desktop project list. The project takes the folder’s name and can be renamed in Codex. Existing desktop projects using the same folder are reused. Closing the MyWizard dialog does not undo an addition completed in Codex. No message is sent; Codex may show an empty composer. If Codex cannot open or registration is cancelled, no successful addition is reported.",
+        "The selected project, calendar meeting and project-copy result appear together on one line below the toolbar. After the copy succeeds, click **Open in Codex** beside the confirmation to bring Codex forward with the exported project selected. Codex may show an empty composer; this button does not send a message or start an analysis. If the copy fails, use **Retry project copy** first; the open button appears after a successful retry. A successful copy notice and its **Open in Codex** button belong to the previous export and clear when you start another recording or select a new project or calendar meeting. A failed copy stays available for retry. Long text is shortened on screen; hover over the line to see full details, including the exported filename or error. **Clear meeting and project** (the circled ×) removes both selections and the notice, including any pending project-copy retry. Existing files, transcript and recording are kept. You can use the circled × during capture; it does not stop recording. It is disabled during export preparation and saving. If a project copy failed, reconnect its folder and use **Retry project copy**, or use the circled × to keep only the original export. Retry or clear a pending copy before saving another transcript. Retry remains available until MyWizard quits; after reopening, copy the original TXT manually if needed.",
+        "After a successful TXT save, the transcript clears automatically and the associated recording folders are moved to the Trash. The selected meeting, search and detected participant names are reset; your configured microphone name and saved voice memory are retained for future meetings. If you cancel or saving fails, the transcript and recordings remain available so you can retry. Audio cleanup failures are reported without affecting the saved TXT file."
+      ]
+    },
+    {
+      "id": "appearance",
+      "title": "Appearance, hiding and quitting",
+      "paragraphs": [
+        "The sliders button opens Preferences. Adjust background transparency and text size to keep the transcript readable over your meeting. Text stays opaque when you change background transparency.",
+        "Drag the floating window to reposition it, or resize it using its edges. The window stays above ordinary app windows. Opening MyWizard, clicking its window or returning from the Dock activates MyWizard and displays its menus in the macOS menu bar.",
+        "The green minus button hides the transcript while MyWizard keeps running. Click MyWizard in the Dock to show it again. The red close button or **⌘Q** quits the app; during an active recording, MyWizard asks whether to continue recording or quit.",
+        "Open **MyWizard → About MyWizard** for the version, build date and bundle number. Open **Help → MyWizard Help** or press **⇧⌘H** for this guide. Use Search help or **⌘F** here to filter topics."
+      ]
+    },
+    {
+      "id": "troubleshooting",
+      "title": "Troubleshooting",
+      "paragraphs": [
+        "**No text appears:** check that recording has started, there is no audio interruption, a system application is playing speech, the source language matches the speech, and system audio and speech permissions are enabled. Speaking only into your microphone does not add live text; your voice appears in the final export.",
+        "**My own voice is missing:** make sure the microphone button was enabled when you spoke, allow microphone access, then wait for export preparation. Check the complete TXT export rather than only the live transcript.",
+        "**Original sound is missing:** stop read-aloud with the speaker button. If capture was interrupted after a device change, reconnect your device and choose Retry audio.",
+        "**A model is unavailable:** check connectivity for the initial download and that the selected regional speech language is installed. First-time preparation may take longer. MyWizard does not silently substitute a different language or regional speech model.",
+        "**Speech language limit:** MyWizard normally frees an unused language reservation automatically before preparing the selected language. If macOS cannot free a slot, finish any active transcription and retry Start, or select one of the already reserved languages listed in the error. A later selection may require a model download.",
+        "**Export fails:** check the destination exists and is writable, try another folder in Text exports, and retry saving. Keep the transcript open until the save succeeds.",
+        "**Unexpected shutdown:** changed transcript and meeting details are backed up about every five seconds; Stop saves a final snapshot. The final seconds can still be lost after an unexpected shutdown. This version does not offer a recovery interface or automatically reopen an interrupted meeting."
+      ]
+    },
+    {
+      "id": "shortcuts",
+      "title": "Keyboard shortcuts",
+      "paragraphs": [
+        "**Return:** Start / Stop when the transcript window handles the shortcut. Text fields can use Return to confirm their own input.",
+        "**⌘S:** Stop, prepare and save the transcript.",
+        "**⌘F:** Find in the transcript, or search topics when the Help window is active. **⌘G / ⇧⌘G:** Next / previous transcript match.",
+        "**⇧⌘H:** Open MyWizard Help. **⌘Q:** Quit MyWizard."
+      ]
+    }
+  ]
+}

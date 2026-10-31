@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDisplayName</key>
+    <string>MyWizard</string>
+    <key>CFBundleExecutable</key>
+    <string>MyWizard</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.yvancognasse.MyWizard</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>MyWizard</string>
+    <key>CFBundleIconFile</key>
+    <string>MyWizard</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+	<string>10.76</string>
+    <key>CFBundleVersion</key>
+	<string>94</string>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleLocalizations</key>
+    <array><string>en</string></array>
+    <key>LSMinimumSystemVersion</key>
+    <string>26.0</string>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>MyWizard reads your synced calendars to let you choose a meeting title and invited people for your local transcription. It does not change calendar events.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>MyWizard transcribes system and microphone audio locally and displays the text in a floating window.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>MyWizard records your microphone locally on a separate audio track and adds its transcription under your saved name when preparing the final export. Microphone speech is never read aloud.</string>
+    <key>NSAudioCaptureUsageDescription</key>
+    <string>MyWizard transcribes system audio locally and can mute the original sound while reading the transcript aloud.</string>
+</dict>
+</plist>
