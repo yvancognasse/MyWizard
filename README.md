@@ -160,7 +160,7 @@ Display translation retains complete translated snapshots while recognition chan
 
 Reading starts at the current passage, follows new system phrases and does not read speaker headings or microphone text. While reading during capture, original system audio is muted but remains captured; MyWizard playback is excluded from the system tap and recorded separately as a reference. Stop reading restores sound; Stop capture also stops reading. No system volume or default-device setting is changed. Capture-format changes interrupt the session with a visible reason and a contextual Retry audio action.
 
-Click speaker headings to rename them, or change names in Preferences. Appearance settings, source/translation languages and export directory persist. Text size and transparency remain adjustable; scrolling manually pauses auto-follow, which resumes when you scroll back to the bottom. The floating Latest button returns to live following.
+Click speaker headings to rename them, or change names in Preferences. The first name applies to all passages for that speaker. Changing an assigned name starts at the clicked passage (or the most recent passage when editing in Preferences); earlier names remain in the live text, saved snapshots and TXT export. In Preferences, press Return or leave the name field to save the complete edit. Appearance settings, source/translation languages and export directory persist. Text size and transparency remain adjustable; scrolling manually pauses auto-follow, which resumes when you scroll back to the bottom. The floating Latest button returns to live following.
 
 ## Text export
 

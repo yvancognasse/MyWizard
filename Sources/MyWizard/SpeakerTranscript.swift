@@ -28,9 +28,13 @@ struct TranscriptParagraph: Identifiable, Equatable, Codable, Sendable {
     var language: String? = nil
     var source: TranscriptSource = .systemAudio
 
+    var startTime: Double? = nil
+    var speakerName: String? = nil
+
     var canReadAloud: Bool { source != .microphone }
 
     func heading(names: [Int: String]) -> String {
+        if let speakerName { return speakerName }
         guard let speaker else { return "Speaker unknown" }
         return SpeakerIdentity.heading(speaker, names: names)
     }
@@ -86,8 +90,15 @@ private struct TranscriptTrack: Sendable {
     }
 }
 
+struct SpeakerNameChange: Codable, Sendable {
+    let speaker: Int
+    let time: Double
+    let name: String
+}
+
 // Pure timestamp alignment, independent of either speech engine and the UI.
 struct SpeakerTranscript: Sendable {
+    private var nameChanges: [SpeakerNameChange] = []
     private var archived: [TranscriptParagraph] = []
     private var archivedSystemCharacterCount = 0
     private var deduplicatedArchive: [TranscriptParagraph] = []
@@ -137,6 +148,7 @@ struct SpeakerTranscript: Sendable {
         archived = paragraphs
         archivedSystemCharacterCount = archived.filter(\.canReadAloud).reduce(0) { $0 + $1.text.count }
         deduplicatedArchive = filtered
+        nameChanges = []
         finalExport = nil
         frozenDisplay = nil
         systemTrack.beginSession()
@@ -160,6 +172,7 @@ struct SpeakerTranscript: Sendable {
         archived = []
         archivedSystemCharacterCount = 0
         deduplicatedArchive = []
+        nameChanges = []
         finalExport = nil
         frozenDisplay = nil
         displayArchive = []
@@ -210,6 +223,7 @@ struct SpeakerTranscript: Sendable {
         revision &+= 1
         liveParagraphCache = LiveParagraphCache()
         systemWordsAreOrdered = true
+        nameChanges = analysis.speakerNameChanges ?? []
         frozenDisplay = analysis.liveSystemParagraphs
         finalExport = nil
         systemTrack.beginSession()
@@ -226,7 +240,8 @@ struct SpeakerTranscript: Sendable {
         }
         finalExport = analysis.paragraphs?.enumerated().map { index, paragraph in
             TranscriptParagraph(id: index, text: paragraph.text, speaker: paragraph.speaker, hasSpeakerLabel: true,
-                language: language, source: paragraph.speaker == SpeakerIdentity.microphone ? .microphone : .systemAudio)
+                language: language, source: paragraph.speaker == SpeakerIdentity.microphone ? .microphone : .systemAudio,
+                startTime: paragraph.startTime, speakerName: paragraph.speakerName)
         }
     }
 
@@ -265,9 +280,12 @@ struct SpeakerTranscript: Sendable {
             .mapValues { $0.sorted { $0.start < $1.start } }
         let numbers = slotNumbers
         let detects = detectsSpeakers
+        let changes = nameChanges
         let current = liveParagraphCache.update(committed: systemTrack.committed,
             provisional: systemTrack.volatile, hasLabels: detectsSpeakers || reservesOwnSpeaker,
-            language: language) { word in
+            language: language, name: { speaker, time in
+                Self.name(for: speaker, at: time, changes: changes)
+            }) { word in
                 detects ? Self.speakerSlot(for: word, bySlot: bySlot).flatMap { numbers[$0] } : nil
             }
         return joinedExport(current, archive: displayArchive)
@@ -286,16 +304,17 @@ struct SpeakerTranscript: Sendable {
             // whole microphone reply, never word-by-word alternation.
             let sentenceEnded = previous?.text.trimmingCharacters(in: .whitespacesAndNewlines).last
                 .map { ".!?…".contains($0) } ?? false
-            if let previous, previous.speaker == speaker, !sentenceEnded, word.start - previous.end < 0.8 {
+            if let previous, previous.speaker == speaker, previous.speakerName == Self.name(for: speaker, at: word.start, changes: nameChanges), !sentenceEnded, word.start - previous.end < 0.8 {
                 blocks[blocks.count - 1].text += word.text
                 blocks[blocks.count - 1].end = max(previous.end, word.end)
             } else {
-                blocks.append(.init(text: word.text, speaker: speaker, start: word.start, end: word.end))
+                blocks.append(.init(text: word.text, speaker: speaker, start: word.start, end: word.end,
+                    speakerName: Self.name(for: speaker, at: word.start, changes: nameChanges)))
             }
         }
         return LiveTranscriptSnapshot(words: words, blocks: blocks,
             display: makeParagraphs(words: words, includingArchive: false),
-            intervals: intervals, speakerNumbers: slotNumbers, names: names)
+            intervals: intervals, speakerNumbers: slotNumbers, names: names, speakerNameChanges: nameChanges)
     }
 
     private static func speakerSlot(for word: TimedText, bySlot: [Int: [SpeakerInterval]]) -> Int? {
@@ -357,7 +376,8 @@ struct SpeakerTranscript: Sendable {
     private func joinedExport(_ current: [TranscriptParagraph], archive: [TranscriptParagraph]) -> [TranscriptParagraph] {
         (archive + current).enumerated().map { index, paragraph in
             TranscriptParagraph(id: index, text: paragraph.text, speaker: paragraph.speaker,
-                hasSpeakerLabel: paragraph.hasSpeakerLabel, language: paragraph.language, source: paragraph.source)
+                hasSpeakerLabel: paragraph.hasSpeakerLabel, language: paragraph.language, source: paragraph.source,
+                startTime: paragraph.startTime, speakerName: paragraph.speakerName)
         }
     }
 
@@ -369,19 +389,57 @@ struct SpeakerTranscript: Sendable {
             let isOwn = word.source == .microphone
             let slot = detectsSpeakers && !isOwn ? Self.speakerSlot(for: word, bySlot: bySlot) : nil
             let number = isOwn ? SpeakerIdentity.microphone : slot.flatMap { slotNumbers[$0] }
-            if result.count > firstCurrent, result.last?.speaker == number, result.last?.source == word.source {
+            if result.count > firstCurrent, result.last?.speaker == number, result.last?.source == word.source,
+               result.last?.speakerName == Self.name(for: number, at: word.start, changes: nameChanges) {
                 result[result.count - 1].text += word.text
             } else {
                 result.append(TranscriptParagraph(id: result.count, text: word.text,
                                                   speaker: number, hasSpeakerLabel: detectsSpeakers || reservesOwnSpeaker || isOwn,
-                                                  language: language, source: word.source))
+                                                  language: language, source: word.source, startTime: word.start,
+                                                  speakerName: Self.name(for: number, at: word.start, changes: nameChanges)))
             }
         }
         return result.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             .enumerated().map { index, paragraph in
                 TranscriptParagraph(id: index, text: paragraph.text, speaker: paragraph.speaker,
-                                    hasSpeakerLabel: paragraph.hasSpeakerLabel, language: paragraph.language, source: paragraph.source)
+                                    hasSpeakerLabel: paragraph.hasSpeakerLabel, language: paragraph.language, source: paragraph.source,
+                startTime: paragraph.startTime, speakerName: paragraph.speakerName)
             }
+    }
+
+    static func name(for speaker: Int?, at time: Double, changes: [SpeakerNameChange]) -> String? {
+        changes.last { $0.speaker == speaker && $0.time <= time }?.name
+    }
+
+    // A heading edit starts at that passage, never at the first occurrence of
+    // the voice. Keep names in older sessions independent of the global default.
+    mutating func renameSpeaker(_ speaker: Int, from paragraph: TranscriptParagraph,
+                                oldName: String, newName: String) {
+        revision &+= 1
+        let boundary = paragraph.startTime ?? 0
+        let isArchived = paragraph.id < displayArchive.count
+        func renamed(_ values: [TranscriptParagraph], archived: Bool) -> [TranscriptParagraph] {
+            values.map { value in
+                guard value.speaker == speaker else { return value }
+                var value = value
+                let follows = (value.startTime ?? 0) >= boundary
+                value.speakerName = (isArchived ? follows : (!archived && follows))
+                    ? newName : (value.speakerName ?? oldName)
+                return value
+            }
+        }
+        archived = renamed(archived, archived: true)
+        deduplicatedArchive = renamed(deduplicatedArchive, archived: true)
+        displayArchive = renamed(displayArchive, archived: true)
+        if let values = frozenDisplay { frozenDisplay = renamed(values, archived: false) }
+        if let values = finalExport { finalExport = renamed(values, archived: false) }
+        let time = isArchived ? 0 : boundary
+        if !nameChanges.contains(where: { $0.speaker == speaker }) && time > 0 {
+            nameChanges.append(SpeakerNameChange(speaker: speaker, time: 0, name: oldName))
+        }
+        nameChanges.removeAll { $0.speaker == speaker && $0.time >= time }
+        nameChanges.append(SpeakerNameChange(speaker: speaker, time: time, name: newName))
+        liveParagraphCache = LiveParagraphCache()
     }
 
     func plainText(names: [Int: String]) -> String {

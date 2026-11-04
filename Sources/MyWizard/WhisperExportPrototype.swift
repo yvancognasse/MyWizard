@@ -12,6 +12,8 @@ struct ExportSpeakerAnchor: Codable, Sendable {
 struct WhisperExportParagraph: Codable, Sendable {
     let speaker: Int?
     var text: String
+    var startTime: Double? = nil
+    var speakerName: String? = nil
 }
 
 struct WhisperExportResult: Codable, Sendable {

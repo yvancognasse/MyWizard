@@ -22,7 +22,7 @@ struct ReadingVoiceContinuity {
               let voice = following ?? lastKnownSpeaker else { return paragraph }
         return TranscriptParagraph(id: paragraph.id, text: paragraph.text,
             speaker: voice, hasSpeakerLabel: paragraph.hasSpeakerLabel,
-            language: paragraph.language, source: paragraph.source)
+            language: paragraph.language, source: paragraph.source, startTime: paragraph.startTime, speakerName: paragraph.speakerName)
     }
 }
 
@@ -35,6 +35,7 @@ enum LiveSpeakerPresentation {
             guard fragment.source == .systemAudio, fragment.speaker == nil,
                   let speaker = paragraphs[index - 1].speaker,
                   speaker == paragraphs[index + 1].speaker,
+                  paragraphs[index - 1].speakerName == paragraphs[index + 1].speakerName,
                   paragraphs[index - 1].source == .systemAudio,
                   paragraphs[index + 1].source == .systemAudio else { continue }
             let text = fragment.text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -42,7 +43,7 @@ enum LiveSpeakerPresentation {
                   text.split(whereSeparator: \.isWhitespace).count <= 3 else { continue }
             result[index] = TranscriptParagraph(id: fragment.id, text: fragment.text,
                 speaker: speaker, hasSpeakerLabel: fragment.hasSpeakerLabel,
-                language: fragment.language, source: fragment.source)
+                language: fragment.language, source: fragment.source, startTime: fragment.startTime, speakerName: paragraphs[index - 1].speakerName)
         }
         return result
     }

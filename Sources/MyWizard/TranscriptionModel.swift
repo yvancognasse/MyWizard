@@ -354,6 +354,21 @@ final class TranscriptionModel: ObservableObject {
         speakerNames = speakerNames.filter { $0.key == SpeakerIdentity.microphone }
     }
 
+    func renameSpeaker(_ speaker: Int, to name: String, from passage: TranscriptParagraph? = nil) {
+        guard !isProcessing else { return }
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let passage = passage ?? paragraphs.last { $0.speaker == speaker }
+        let previous = speakerNames[speaker]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if let passage, name == (passage.speakerName ?? previous) { return }
+        if let passage, !(passage.speakerName ?? previous).isEmpty {
+            document.renameSpeaker(speaker, from: passage,
+                oldName: SpeakerIdentity.heading(speaker, names: speakerNames),
+                newName: name.isEmpty ? SpeakerIdentity.heading(speaker) : name)
+        }
+        speakerNames[speaker] = name
+        if pendingLiveTranscript != nil { pendingLiveTranscript = liveSnapshot() }
+    }
+
     private func refreshTranscript() {
         transcriptRefreshTask?.cancel()
         transcriptRefreshTask = nil

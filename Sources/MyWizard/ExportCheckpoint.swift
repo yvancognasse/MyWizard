@@ -5,7 +5,7 @@ import Darwin
 struct ExportCheckpoint: Codable {
     // Increment when recognition, echo reduction or assembly behavior changes.
     static let revision = 3
-    static let currentAssemblyRevision = 2
+    static let currentAssemblyRevision = 3
     let key: String
     var cleanedStamp: FileStamp?
     var echoOnly: [AudioEchoInterval]?

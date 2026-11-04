@@ -25,6 +25,7 @@ struct OverlayView: View {
 
     private struct SpeakerSelection: Identifiable {
         let id: Int
+        let paragraph: TranscriptParagraph
     }
 
     private let bottomAnchor = "transcript-bottom"
@@ -268,12 +269,12 @@ struct OverlayView: View {
                         ForEach(speakerNumbers, id: \.self) { number in
                             HStack {
                                 Text("Speaker \(number)").foregroundStyle(speakerColor(number))
-                                TextField("Name", text: Binding(
-                                    get: { model.speakerNames[number] ?? "" },
-                                    set: { model.speakerNames[number] = $0 }
-                                ))
+                                SpeakerPreferenceNameField(currentName: model.speakerNames[number] ?? "") { name in
+                                    model.renameSpeaker(number, to: name)
+                                }
                                 .textFieldStyle(.roundedBorder)
                                 .accessibilityLabel("Name for Speaker \(number)")
+                                .disabled(model.isProcessing)
                             }
                         }
                     }
@@ -400,7 +401,7 @@ struct OverlayView: View {
                                             if let speaker = paragraph.speaker {
                                                 Button {
                                                     NSApplication.shared.activate()
-                                                    speakerToRename = SpeakerSelection(id: speaker)
+                                                    speakerToRename = SpeakerSelection(id: speaker, paragraph: paragraph)
                                                 } label: {
                                                     Text(paragraph.heading(names: model.speakerNames))
                                                         .font(.system(size: max(12, fontSize * 0.75), weight: .semibold))
@@ -408,7 +409,8 @@ struct OverlayView: View {
                                                         .contentShape(Rectangle())
                                                 }
                                                 .buttonStyle(.plain)
-                                                .help("Click to rename \(SpeakerIdentity.heading(speaker))")
+                                                .help("Click to rename \(SpeakerIdentity.heading(speaker)) from this passage onward")
+                                                .disabled(model.isProcessing)
                                                 .accessibilityLabel("Rename \(SpeakerIdentity.heading(speaker)): \(paragraph.heading(names: model.speakerNames))")
                                             } else {
                                                 Text(paragraph.heading(names: model.speakerNames))
@@ -513,9 +515,9 @@ struct OverlayView: View {
         .sheet(isPresented: $showsCalendar) { CalendarMeetingPicker(model: model) }
         .sheet(isPresented: $showsCodexProjects) { CodexProjectPicker(model: model) }
         .sheet(item: $speakerToRename) { speaker in
-            SpeakerNameEditor(speaker: speaker.id, currentName: model.speakerNames[speaker.id] ?? "",
+            SpeakerNameEditor(speaker: speaker.id, currentName: speaker.paragraph.speakerName ?? model.speakerNames[speaker.id] ?? "",
                               suggestions: model.calendarMeeting?.invitees ?? []) { name in
-                model.speakerNames[speaker.id] = name
+                model.renameSpeaker(speaker.id, to: name, from: speaker.paragraph)
             }
         }
         .onChange(of: searchQuery) { refreshSearch(reset: true) }

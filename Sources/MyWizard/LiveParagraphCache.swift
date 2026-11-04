@@ -20,34 +20,37 @@ struct LiveParagraphCache: Sendable {
 
     mutating func update(committed: [TimedText], provisional: [TimedText],
                          hasLabels: Bool, language: String?,
+                         name: (Int?, Double) -> String? = { _, _ in nil },
                          speaker: (TimedText) -> Int?) -> [TranscriptParagraph] {
         for index in processed..<committed.count {
             Self.append(committed[index], at: index, to: &entries,
-                   hasLabels: hasLabels, language: language, speaker: speaker)
+                   hasLabels: hasLabels, language: language, name: name, speaker: speaker)
         }
         processed = committed.count
         var visible = entries
         for (index, word) in provisional.enumerated() {
             Self.append(word, at: processed + index, to: &visible,
-                   hasLabels: hasLabels, language: language, speaker: speaker)
+                   hasLabels: hasLabels, language: language, name: name, speaker: speaker)
         }
         return visible.map(\.paragraph)
             .filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             .enumerated().map { index, paragraph in
                 TranscriptParagraph(id: index, text: paragraph.text, speaker: paragraph.speaker,
-                    hasSpeakerLabel: paragraph.hasSpeakerLabel, language: paragraph.language)
+                    hasSpeakerLabel: paragraph.hasSpeakerLabel, language: paragraph.language,
+                    startTime: paragraph.startTime, speakerName: paragraph.speakerName)
             }
     }
 
     private static func append(_ word: TimedText, at index: Int, to entries: inout [Entry],
-                        hasLabels: Bool, language: String?, speaker: (TimedText) -> Int?) {
+                        hasLabels: Bool, language: String?, name: (Int?, Double) -> String?, speaker: (TimedText) -> Int?) {
         let number = speaker(word)
-        if let last = entries.last, last.paragraph.speaker == number {
+        if let last = entries.last, last.paragraph.speaker == number, last.paragraph.speakerName == name(number, word.start) {
             entries[entries.count - 1].paragraph.text += word.text
             entries[entries.count - 1].latestEnd = max(last.latestEnd, word.end)
         } else {
             entries.append(Entry(paragraph: TranscriptParagraph(id: entries.count,
-                text: word.text, speaker: number, hasSpeakerLabel: hasLabels, language: language),
+                text: word.text, speaker: number, hasSpeakerLabel: hasLabels, language: language,
+                startTime: word.start, speakerName: name(number, word.start)),
                 firstWord: index, latestEnd: word.end))
         }
     }

@@ -5,6 +5,7 @@ struct LiveTranscriptBlock: Codable, Sendable {
     let speaker: Int?
     let start: Double
     var end: Double
+    var speakerName: String? = nil
 }
 
 struct LiveTranscriptSnapshot: Codable, Sendable {
@@ -14,6 +15,7 @@ struct LiveTranscriptSnapshot: Codable, Sendable {
     let intervals: [SpeakerInterval]
     let speakerNumbers: [Int: Int]
     let names: [Int: String]
+    var speakerNameChanges: [SpeakerNameChange]? = nil
     var calendarMeeting: CalendarMeeting? = nil
     var codexProject: CodexProject? = nil
 
@@ -43,12 +45,16 @@ struct LiveTranscriptSnapshot: Codable, Sendable {
         }
         // Stable ordering: retain the original order for tied timestamps, with
         // the live system block first. Overlap never deletes an intervention.
-        let systemBlocks = ExportParagraphPolish.resolve(blocks, intervals: intervals, numbers: speakerNumbers, activity: systemActivity)
+        let systemBlocks = ExportParagraphPolish.resolve(blocks, intervals: intervals, numbers: speakerNumbers, activity: systemActivity).map { block in
+            var block = block
+            block.speakerName = SpeakerTranscript.name(for: block.speaker, at: block.start, changes: speakerNameChanges ?? []) ?? block.speakerName
+            return block
+        }
         let merged = (systemBlocks + microphoneBlocks).enumerated().sorted {
             $0.element.start == $1.element.start ? $0.offset < $1.offset : $0.element.start < $1.element.start
         }.map(\.element)
         return MeetingAnalysis(system: self.words, microphone: own, intervals: intervals,
-            speakerNumbers: speakerNumbers, paragraphs: ExportParagraphPolish.coalesce(merged), liveSystemParagraphs: display)
+            speakerNumbers: speakerNumbers, paragraphs: ExportParagraphPolish.coalesce(merged), liveSystemParagraphs: display, speakerNameChanges: speakerNameChanges)
     }
 }
 

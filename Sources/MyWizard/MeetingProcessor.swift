@@ -9,6 +9,7 @@ struct MeetingAnalysis: Codable, Sendable {
     var speakerNumbers: [Int: Int]? = nil
     var paragraphs: [WhisperExportParagraph]? = nil
     var liveSystemParagraphs: [TranscriptParagraph]? = nil
+    var speakerNameChanges: [SpeakerNameChange]? = nil
 }
 
 actor MeetingProcessor {

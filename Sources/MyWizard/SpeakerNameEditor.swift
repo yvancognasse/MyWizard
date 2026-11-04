@@ -29,7 +29,7 @@ struct SpeakerNameEditor: View {
                 .textFieldStyle(.roundedBorder)
                 .focused($nameIsFocused)
                 .onSubmit { commit() }
-            Text("Applies to this speaker and saved text. With enough clear speech, the name is remembered automatically on this Mac for future meetings. Leave empty to restore \(SpeakerIdentity.heading(speaker)).")
+            Text("The first name applies to all passages for this speaker. Changing an assigned name applies from this passage onward, including saved text; earlier passages keep their names. With enough clear speech, the name is remembered automatically on this Mac for future meetings. Leave empty to restore \(SpeakerIdentity.heading(speaker)).")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             HStack {
@@ -48,5 +48,34 @@ struct SpeakerNameEditor: View {
     private func commit() {
         save(name.trimmingCharacters(in: .whitespacesAndNewlines))
         dismiss()
+    }
+}
+
+// Commit one name edit, rather than treating every typed character as a new
+// historical assignment. Leaving the field or closing Preferences also saves.
+struct SpeakerPreferenceNameField: View {
+    let currentName: String
+    let save: (String) -> Void
+    @State private var name: String
+    @FocusState private var isFocused: Bool
+
+    init(currentName: String, save: @escaping (String) -> Void) {
+        self.currentName = currentName
+        self.save = save
+        _name = State(initialValue: currentName)
+    }
+
+    var body: some View {
+        TextField("Name", text: $name)
+            .focused($isFocused)
+            .onSubmit { commit() }
+            .onChange(of: isFocused) { if !isFocused { commit() } }
+            .onChange(of: currentName) { if !isFocused { name = currentName } }
+            .onDisappear { commit() }
+    }
+
+    private func commit() {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed != currentName { save(trimmed) }
     }
 }

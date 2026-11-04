@@ -101,14 +101,14 @@ enum ExportParagraphPolish {
                punctuation.unicodeScalars.allSatisfy({ CharacterSet.punctuationCharacters.contains($0) || CharacterSet.whitespacesAndNewlines.contains($0) }),
                let previousIndex = result.lastIndex(where: { $0.speaker != SpeakerIdentity.microphone }) {
                 let previous = result[previousIndex]
-                result[previousIndex] = WhisperExportParagraph(speaker: previous.speaker, text: previous.text + block.text)
+                result[previousIndex] = WhisperExportParagraph(speaker: previous.speaker, text: previous.text + block.text, startTime: previous.startTime, speakerName: previous.speakerName)
                 continue
             }
-            if let previous = result.last, let speaker = block.speaker, previous.speaker == speaker {
+            if let previous = result.last, let speaker = block.speaker, previous.speaker == speaker, previous.speakerName == block.speakerName {
                 // Insert only a missing separator; never rewrite punctuation or names.
                 let separator = previous.text.last?.isWhitespace == false && block.text.first?.isWhitespace == false ? " " : ""
-                result[result.count - 1] = WhisperExportParagraph(speaker: speaker, text: previous.text + separator + block.text)
-            } else { result.append(WhisperExportParagraph(speaker: block.speaker, text: block.text)) }
+                result[result.count - 1] = WhisperExportParagraph(speaker: speaker, text: previous.text + separator + block.text, startTime: previous.startTime, speakerName: previous.speakerName)
+            } else { result.append(WhisperExportParagraph(speaker: block.speaker, text: block.text, startTime: block.start, speakerName: block.speakerName)) }
         }
         return result
     }
