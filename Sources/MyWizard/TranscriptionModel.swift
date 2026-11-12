@@ -46,7 +46,7 @@ final class TranscriptionModel: ObservableObject {
             cachedTranscript = nil
             snapshotMetadataRevision &+= 1
             preferences.set(speakerNames[SpeakerIdentity.microphone] ?? "", forKey: "ownSpeakerName")
-            persistVoiceNames()
+            persistVoiceNames(changed: Set(oldValue.keys).union(speakerNames.keys).filter { oldValue[$0] != speakerNames[$0] })
             refreshTranscript()
         }
     }
@@ -97,7 +97,8 @@ final class TranscriptionModel: ObservableObject {
     @Published private(set) var voiceMemoryMessage: String?
     private let voiceMemory: VoiceMemory
     private var currentVoiceIDs: [Int: UUID] = [:]
-    private var autoNamedNumbers: Set<Int> = []
+    private var explicitlyNamedNumbers: Set<Int> = []
+    private var sessionEnrolledVoiceIDs: Set<UUID> = []
     private var voiceSamplesByNumber: [Int: [[Float]]] = [:]
     private var voiceLearningSuppressed = false
     private var forgottenVoiceNumbers: Set<Int> = []
@@ -145,8 +146,8 @@ final class TranscriptionModel: ObservableObject {
 
     init(preferences: any PreferenceStore = UserDefaults.standard, reader: TranscriptReader = TranscriptReader(), recordingRoot: URL = RecordedMeeting.root,
          systemCaptureFactory: (@MainActor (CaptureTimeline) -> SystemAudioCapture)? = nil,
-         voiceMemoryURL: URL = VoiceMemory.defaultURL) {
-        voiceMemory = VoiceMemory(url: voiceMemoryURL)
+         voiceMemoryURL: URL? = nil) {
+        voiceMemory = VoiceMemory(url: voiceMemoryURL ?? (preferences is MemoryPreferences ? nil : VoiceMemory.defaultURL))
         rememberedVoices = voiceMemory.voices
         voiceMemoryMessage = voiceMemory.loadError
         speechPreparation = StartupPreparation(discard: { prepared in
@@ -188,56 +189,71 @@ final class TranscriptionModel: ObservableObject {
         if let warning = snapshot.voiceMemoryWarning { voiceMemoryMessage = warning }
         for slot in snapshot.voiceEmbeddings.keys.sorted() {
             guard let number = document.speakerNumber(forSlot: slot),
-                  currentVoiceIDs[number] == nil, !voiceLearningSuppressed, !forgottenVoiceNumbers.contains(number),
+                  !voiceLearningSuppressed, !forgottenVoiceNumbers.contains(number),
                   let samples = snapshot.voiceEmbeddings[slot], samples.count >= 2 else { continue }
+            let changed = voiceSamplesByNumber[number] != samples
             voiceSamplesByNumber[number] = samples
-            do {
-                let assigned = Set(currentVoiceIDs.values)
-                if let match = voiceMemory.match(samples, excluding: assigned) {
-                    // A manual correction creates a separate template rather than
-                    // renaming another person's stored profile on a false match.
-                    let explicit = (speakerNames[number] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !explicit.isEmpty && match.name.isEmpty {
-                        try voiceMemory.rename(match.id, to: explicit)
-                        currentVoiceIDs[number] = match.id
-                    } else if !explicit.isEmpty && explicit != match.name {
-                        if let voice = try voiceMemory.remember(samples, name: explicit) { currentVoiceIDs[number] = voice.id }
-                    } else {
-                        currentVoiceIDs[number] = match.id
-                        if explicit.isEmpty && !match.name.isEmpty {
-                            autoNamedNumbers.insert(number)
-                            isApplyingVoiceName = true
-                            speakerNames[number] = match.name
-                            isApplyingVoiceName = false
-                        }
-                    }
-                } else if (!voiceMemory.hasPlausibleMatch(samples) || !(speakerNames[number] ?? "").isEmpty),
-                          let voice = try voiceMemory.remember(samples, name: speakerNames[number] ?? "") {
-                    currentVoiceIDs[number] = voice.id
+            if explicitlyNamedNumbers.contains(number) {
+                // A name entered before enough clear audio is available is saved
+                // as soon as a consistent pair arrives. Blank is an explicit opt-out.
+                if changed, currentVoiceIDs[number] == nil { rememberExplicitVoice(number) }
+                continue
+            }
+            guard currentVoiceIDs[number] == nil else { continue }
+            // Sortformer may split one person's voice into several non-overlapping
+            // slots. Only concurrent speech rules out reusing a known identity.
+            let own = snapshot.intervals.filter { $0.slot == slot }
+            let concurrentSlots = Set(snapshot.intervals.filter { other in
+                other.slot != slot && own.contains {
+                    min($0.end, other.end) - max($0.start, other.start) > 0.25
                 }
-                rememberedVoices = voiceMemory.voices
-                if let message = voiceMemory.loadError { voiceMemoryMessage = message }
-            } catch { voiceMemoryMessage = "Voices could not be saved: \(error.localizedDescription)" }
+            }.map(\.slot))
+            let excluded = Set(concurrentSlots.compactMap { other in
+                document.speakerNumber(forSlot: other).flatMap { currentVoiceIDs[$0] }
+            })
+            if let match = voiceMemory.match(samples, excluding: excluded) {
+                currentVoiceIDs[number] = match.id
+                isApplyingVoiceName = true
+                speakerNames[number] = match.name
+                isApplyingVoiceName = false
+            }
         }
+        rememberedVoices = voiceMemory.voices
+        if let message = voiceMemory.loadError { voiceMemoryMessage = message }
     }
 
-    private func persistVoiceNames() {
+    private func persistVoiceNames(changed numbers: Set<Int>) {
         guard !isApplyingVoiceName else { return }
+        for number in numbers where number != SpeakerIdentity.microphone {
+            let previous = currentVoiceIDs.removeValue(forKey: number)
+            guard speakerNames[number] != nil else {
+                explicitlyNamedNumbers.remove(number)
+                continue
+            }
+            explicitlyNamedNumbers.insert(number)
+            rememberExplicitVoice(number, replacing: previous)
+        }
+        rememberedVoices = voiceMemory.voices
+    }
+
+    private func rememberExplicitVoice(_ number: Int, replacing previous: UUID? = nil) {
+        guard !voiceLearningSuppressed, !forgottenVoiceNumbers.contains(number),
+              let samples = voiceSamplesByNumber[number] else { return }
         do {
-            for (number, id) in Array(currentVoiceIDs) {
-                let name = (speakerNames[number] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                if autoNamedNumbers.contains(number),
-                   voiceMemory.voices.first(where: { $0.id == id })?.name != name,
-                   let samples = voiceSamplesByNumber[number] {
-                    if let corrected = try voiceMemory.remember(samples, name: name) {
-                        currentVoiceIDs[number] = corrected.id
-                        autoNamedNumbers.remove(number)
-                    }
-                } else {
-                    try voiceMemory.rename(id, to: name)
+            let name = speakerNames[number] ?? ""
+            let alreadySaved = voiceMemory.voices.contains { VoiceMemory.nameKey($0.name) == VoiceMemory.nameKey(name) }
+            if let voice = try voiceMemory.remember(samples, name: name) {
+                currentVoiceIDs[number] = voice.id
+                if !alreadySaved { sessionEnrolledVoiceIDs.insert(voice.id) }
+                // Correcting a name just enrolled in this session replaces that
+                // draft profile. Correcting recognition never renames/deletes an
+                // older known person or a profile used by another speaker.
+                if let previous, previous != voice.id, sessionEnrolledVoiceIDs.contains(previous),
+                   !currentVoiceIDs.values.contains(previous) {
+                    try voiceMemory.forget(previous)
+                    sessionEnrolledVoiceIDs.remove(previous)
                 }
             }
-            rememberedVoices = voiceMemory.voices
         } catch { voiceMemoryMessage = "Speaker names could not be remembered: \(error.localizedDescription)" }
     }
 
@@ -339,7 +355,8 @@ final class TranscriptionModel: ObservableObject {
         guard !isCapturing, !isTransitioning, !needsProcessing else { return }
         stopReading()
         currentVoiceIDs = [:]
-        autoNamedNumbers = []
+        explicitlyNamedNumbers = []
+        sessionEnrolledVoiceIDs = []
         voiceSamplesByNumber = [:]
         voiceLearningSuppressed = false
         forgottenVoiceNumbers = []
@@ -485,7 +502,8 @@ final class TranscriptionModel: ObservableObject {
         meeting.manifest.detectSpeakers = true
         recordingBegan(at: meeting.manifest.created)
         currentVoiceIDs = [:]
-        autoNamedNumbers = []
+        explicitlyNamedNumbers = []
+        sessionEnrolledVoiceIDs = []
         voiceSamplesByNumber = [:]
         voiceLearningSuppressed = false
         forgottenVoiceNumbers = []
@@ -729,7 +747,8 @@ final class TranscriptionModel: ObservableObject {
         audioLevel = 0
         timeline.reset()
         currentVoiceIDs = [:]
-        autoNamedNumbers = []
+        explicitlyNamedNumbers = []
+        sessionEnrolledVoiceIDs = []
         voiceSamplesByNumber = [:]
         voiceLearningSuppressed = false
         forgottenVoiceNumbers = []

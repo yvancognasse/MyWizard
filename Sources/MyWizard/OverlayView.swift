@@ -228,20 +228,20 @@ struct OverlayView: View {
                             .font(.caption).foregroundStyle(.secondary)
                         Divider()
                         Text("Speakers").font(.headline)
-                        Text("Voices are remembered automatically on this Mac. Rename a speaker once to recognize their name in future meetings. Recognition needs clear speech and can be delayed or incorrect.")
+                        Text("Only named voices are saved on this Mac, with one profile per name. Rename a speaker to recognize them in future meetings. Clear speech is needed; uncertain matches keep a numbered label.")
                             .font(.caption).foregroundStyle(.secondary)
                         if !model.rememberedVoices.isEmpty {
                             Text("\(model.rememberedVoices.count) saved voices")
                                 .font(.caption)
                             ForEach(model.rememberedVoices) { voice in
                                 HStack {
-                                    Text(voice.name.isEmpty ? "Unnamed voice" : voice.name)
+                                    Text(voice.name)
                                         .font(.caption).textSelection(.enabled)
                                     Spacer()
                                     Button(role: .destructive) { model.forgetSavedVoice(voice.id) } label: {
                                         Image(systemName: "trash")
                                     }
-                                    .accessibilityLabel("Forget voice: \(voice.name.isEmpty ? "Unnamed voice" : voice.name)")
+                                    .accessibilityLabel("Forget voice: \(voice.name)")
                                     .help("Forget this saved voice; current transcript names stay")
                                 }
                             }
@@ -516,7 +516,7 @@ struct OverlayView: View {
         .sheet(isPresented: $showsCodexProjects) { CodexProjectPicker(model: model) }
         .sheet(item: $speakerToRename) { speaker in
             SpeakerNameEditor(speaker: speaker.id, currentName: speaker.paragraph.speakerName ?? model.speakerNames[speaker.id] ?? "",
-                              suggestions: model.calendarMeeting?.invitees ?? []) { name in
+                              suggestions: model.calendarMeeting?.invitees ?? [], savedNames: model.rememberedVoices.map(\.name)) { name in
                 model.renameSpeaker(speaker.id, to: name, from: speaker.paragraph)
             }
         }

@@ -72,14 +72,14 @@ actor SpeakerDetection {
         try Task.checkCancellation()
         guard let diarizer else { throw TranscriptionError.message("Speaker detection is not ready.") }
         _ = try diarizer.finalizeSession()
-        return voiceSnapshot(diarizer)
+        return voiceSnapshot(diarizer, finalizing: true)
     }
 
-    private func voiceSnapshot(_ diarizer: SortformerDiarizer) -> SpeakerSnapshot {
+    private func voiceSnapshot(_ diarizer: SortformerDiarizer, finalizing: Bool = false) -> SpeakerSnapshot {
         var result = snapshot(diarizer)
         if let voiceExtractor, voiceMemoryWarning == nil {
             do {
-                try voiceSamples.extract(from: result) { audio in
+                try voiceSamples.extract(from: result, force: finalizing) { audio in
                     try voiceExtractor.getEmbeddings(audio: audio, masks: [Array(repeating: Float(1), count: 589)]).first
                 }
             } catch {

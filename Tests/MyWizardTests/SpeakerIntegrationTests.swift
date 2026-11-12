@@ -115,8 +115,8 @@ struct SpeakerIntegrationTests {
         #expect(firstSlot != secondSlot)
         let firstVectors = try #require(snapshot.voiceEmbeddings[firstSlot])
         let secondVectors = try #require(snapshot.voiceEmbeddings[secondSlot])
-        try #require(firstVectors.count == 2)
-        try #require(secondVectors.count == 2)
+        try #require(firstVectors.count >= 2)
+        try #require(secondVectors.count >= 2)
         print("VOICE MODEL similarity: same=\(VoiceMemory.similarity(firstVectors[0], firstVectors[1])), other=\(VoiceMemory.similarity(firstVectors[0], secondVectors[0]))")
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -127,7 +127,9 @@ struct SpeakerIntegrationTests {
 
         try await detector.prepare()
         // Reverse the order: the returning person has a new session/slot.
-        let nextRecording = second + second + silence
+        let returningURL = URL(fileURLWithPath: path).appendingPathComponent("speaker-two-returning.aiff")
+        let returning = FileManager.default.fileExists(atPath: returningURL.path) ? try loadSamples(returningURL.path) : second
+        let nextRecording = returning + returning + silence
         for index in stride(from: 0, to: nextRecording.count, by: 8_000) {
             _ = try await detector.process(Array(nextRecording[index..<min(index + 8_000, nextRecording.count)]))
         }

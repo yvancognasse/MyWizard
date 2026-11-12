@@ -2,14 +2,16 @@ import SwiftUI
 
 struct SpeakerNameEditor: View {
     let suggestions: [String]
+    let savedNames: [String]
     let speaker: Int
     let save: (String) -> Void
     @State private var name: String
     @FocusState private var nameIsFocused: Bool
     @Environment(\.dismiss) private var dismiss
 
-    init(speaker: Int, currentName: String, suggestions: [String] = [], save: @escaping (String) -> Void) {
+    init(speaker: Int, currentName: String, suggestions: [String] = [], savedNames: [String] = [], save: @escaping (String) -> Void) {
         self.suggestions = suggestions
+        self.savedNames = savedNames
         self.speaker = speaker
         self.save = save
         _name = State(initialValue: currentName)
@@ -21,6 +23,13 @@ struct SpeakerNameEditor: View {
             if !suggestions.isEmpty {
                 Menu("Choose an invited person") {
                     ForEach(suggestions, id: \.self) { person in
+                        Button(person) { name = person }
+                    }
+                }
+            }
+            if !savedNames.isEmpty, speaker != SpeakerIdentity.microphone {
+                Menu("Choose a saved voice") {
+                    ForEach(savedNames, id: \.self) { person in
                         Button(person) { name = person }
                     }
                 }

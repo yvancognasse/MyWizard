@@ -24,7 +24,7 @@ struct HelpGuideTests {
         #expect(guide.sections.contains { $0.id == "troubleshooting" && $0.matches("five seconds") })
         #expect(guide.sections.contains { $0.matches("⇧⌘H") })
         #expect(guide.sections.contains { $0.id == "export" && $0.matches("successful copy notice") })
-        #expect(guide.sections.contains { $0.id == "microphone" && $0.matches("Forget saved voices") && $0.matches("remembered automatically") })
+        #expect(guide.sections.contains { $0.id == "microphone" && $0.matches("Forget saved voices") && $0.matches("remembered automatically") && $0.matches("each saved name appears once") && $0.matches("unnamed profiles are removed") })
         #expect(guide.sections.contains { $0.id == "permissions" && $0.matches("unused language reservation") })
         #expect(guide.sections.contains { $0.id == "microphone" && $0.matches("earlier passages") && $0.matches("most recent displayed passage") })
         #expect(!guide.sections.contains { $0.matches("unfindable-search-123456") })
