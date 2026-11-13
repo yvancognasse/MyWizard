@@ -9,11 +9,118 @@ protocol SystemAudioTapControlling: AnyObject {
     func stop(queue: DispatchQueue)
 }
 
+// Arm capture at Start, but attach only to applications whose output is ready.
+// A global tap could deadlock Zoom's input startup before it opens its output.
+@MainActor
+final class SystemAudioTap: SystemAudioTapControlling {
+    private struct Callbacks {
+        let queue: DispatchQueue
+        let receive: @Sendable (AVAudioPCMBuffer, Double) -> Void
+        let error: @Sendable (String) -> Void
+        let changed: (@Sendable (String) -> Void)?
+    }
+    private let monitor: any AudioOutputMonitoring
+    private let makeTap: @MainActor ([AudioObjectID], Bool) -> any SystemAudioTapControlling
+    private let gate = AudioTapGeneration()
+    private var callbacks: Callbacks?
+    private var tap: (any SystemAudioTapControlling)?
+    private var ids: [AudioObjectID] = []
+    private var muted = false
+    var capturedProcessIDs: [AudioObjectID] { ids }
+
+    init(monitor: (any AudioOutputMonitoring)? = nil,
+         makeTap: (@MainActor ([AudioObjectID], Bool) -> any SystemAudioTapControlling)? = nil) {
+        self.monitor = monitor ?? AudioOutputProcesses()
+        self.makeTap = makeTap ?? { ProcessAudioTap(processes: $0, muted: $1) }
+    }
+
+    func start(queue: DispatchQueue, receive: @escaping @Sendable (AVAudioPCMBuffer, Double) -> Void,
+               onError: @escaping @Sendable (String) -> Void, onDeviceChange: (@Sendable (String) -> Void)? = nil) throws {
+        stop(queue: queue)
+        callbacks = Callbacks(queue: queue, receive: receive, error: onError, changed: onDeviceChange)
+        do {
+            try monitor.start(update: { [weak self] ids in self?.sourcesChanged(ids) },
+                              failure: { [weak self] message in self?.callbacks?.error(message) })
+        } catch { stop(queue: queue); throw error }
+    }
+
+    func setMuted(_ muted: Bool) throws {
+        try tap?.setMuted(muted)
+        self.muted = muted // Also applies to sources that start while reading.
+    }
+
+    func stop(queue: DispatchQueue) {
+        monitor.stop()
+        callbacks = nil
+        gate.set(nil)
+        tap?.stop(queue: queue)
+        tap = nil
+        ids = []
+        muted = false
+    }
+
+    private func sourcesChanged(_ sources: [AudioObjectID]) {
+        guard let callbacks else { return }
+        let sources = Array(Set(sources)).sorted()
+        guard sources != ids else { return }
+        gate.set(nil)
+        tap?.stop(queue: callbacks.queue)
+        callbacks.queue.sync {} // Finish any accepted old buffers before the next source clock.
+        tap = nil
+        ids = []
+        guard !sources.isEmpty else { return }
+        let token = UUID()
+        gate.set(token)
+        let gate = self.gate
+        let next = makeTap(sources, muted)
+        do {
+            try next.start(queue: callbacks.queue, receive: { pcm, time in
+                guard gate.matches(token) else { return }
+                callbacks.receive(pcm, time)
+            }, onError: { message in
+                guard gate.matches(token) else { return }
+                callbacks.error(message)
+            }, onDeviceChange: { message in
+                guard gate.matches(token) else { return }
+                (callbacks.changed ?? callbacks.error)(message)
+            })
+            tap = next
+            ids = sources
+        } catch {
+            gate.set(nil)
+            next.stop(queue: callbacks.queue)
+            // A short-lived notification/player may exit between selection and
+            // tap creation. Reconcile once instead of ending the whole meeting.
+            do {
+                let current = try monitor.refresh()
+                if current != sources { return }
+            } catch { /* Report the original start error if the catalog is unavailable. */ }
+            callbacks.error(error.localizedDescription)
+        }
+    }
+}
+
+private final class AudioTapGeneration: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: UUID?
+    func set(_ token: UUID?) { lock.withLock { value = token } }
+    func matches(_ token: UUID) -> Bool { lock.withLock { value == token } }
+}
+
 // A private, input-only aggregate. It never changes the user's default device
 // or output volume. Control methods belong to the main actor; the callback is
 // delivered on the capture's serial queue and must consume/copy borrowed PCM.
 @MainActor
-final class SystemAudioTap: SystemAudioTapControlling {
+final class ProcessAudioTap: SystemAudioTapControlling {
+    private let processes: [AudioObjectID]
+    private let initiallyMuted: Bool
+
+    init(processes: [AudioObjectID], muted: Bool) {
+        precondition(!processes.isEmpty)
+        self.processes = processes
+        initiallyMuted = muted
+    }
+
     private var tapID: AudioObjectID = 0
     private var deviceID: AudioObjectID = 0
     private var ioProc: AudioDeviceIOProcID?
@@ -27,18 +134,13 @@ final class SystemAudioTap: SystemAudioTapControlling {
                onDeviceChange: (@Sendable (String) -> Void)? = nil) throws {
         let changed = onDeviceChange ?? onError
         do {
-            var pid = getpid()
-            var processID: AudioObjectID = 0
+            let description = CATapDescription(stereoMixdownOfProcesses: processes)
+            description.isProcessRestoreEnabled = false
             var size = UInt32(MemoryLayout<AudioObjectID>.size)
-            var address = Self.address(kAudioHardwarePropertyTranslatePIDToProcessObject)
-            _ = AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address,
-                UInt32(MemoryLayout<pid_t>.size), &pid, &size, &processID)
-            let description = CATapDescription(stereoGlobalTapButExcludeProcesses: processID == 0 ? [] : [processID])
-            // Bundle exclusion also covers playback initialized after the tap.
-            description.bundleIDs = [Bundle.main.bundleIdentifier ?? "com.yvancognasse.MyWizard"]
+            var address = Self.address(kAudioTapPropertyFormat)
             description.name = "MyWizard system audio"
             description.isPrivate = true
-            description.muteBehavior = .unmuted
+            description.muteBehavior = initiallyMuted ? .mutedWhenTapped : .unmuted
             try Self.check(AudioHardwareCreateProcessTap(description, &tapID), "Create system audio capture")
             self.description = description
 
@@ -53,7 +155,9 @@ final class SystemAudioTap: SystemAudioTapControlling {
                 kAudioAggregateDeviceNameKey: "MyWizard capture",
                 kAudioAggregateDeviceUIDKey: UUID().uuidString,
                 kAudioAggregateDeviceIsPrivateKey: true,
-                kAudioAggregateDeviceTapAutoStartKey: true,
+                // Never wait for a tapped client to produce its first audio:
+                // that dependency can hold another client's AudioDeviceStart.
+                kAudioAggregateDeviceTapAutoStartKey: false,
                 kAudioAggregateDeviceTapListKey: [[
                     kAudioSubTapUIDKey: description.uuid.uuidString,
                     kAudioSubTapDriftCompensationKey: true

@@ -1,5 +1,5 @@
 {
-  "reviewedVersion": "10.79",
+  "reviewedVersion": "10.80",
   "sections": [
     {
       "id": "quick-start",
@@ -29,7 +29,7 @@
         "**Start / Stop:** start a new capture or end the current one. The timer shows elapsed meeting time. The language selector is locked while capturing.",
         "There is no manual Pause / Resume control or shortcut. To end capture, choose Stop and save the transcript. Finish or cancel the save dialog before using Start for a subsequent recording.",
         "If an audio device disconnects or the system output changes format, MyWizard interrupts both captures with an explanation. No audio is captured during this interruption. Reconnect or select your device, then choose **Retry audio** in the interruption message. A failed retry leaves capture interrupted; you can retry again or choose Stop to export the text already captured.",
-        "MyWizard records system audio, so other audible applications can also appear in the transcript. Keep unrelated playback stopped when you want only meeting speech."
+        "You can click Start before joining Zoom or another meeting. MyWizard waits for applications to activate their audio output, then attaches capture automatically; it releases sources when their output stops. While waiting, the timer and microphone recording continue. A newly started audio source may have a brief initial gap, usually less than a second. Other audible applications can also appear in the transcript, so stop unrelated playback when you want only meeting speech. Source changes keep the same recording and preserve elapsed time in the export."
       ]
     },
     {
@@ -63,7 +63,7 @@
       "paragraphs": [
         "Open **Preferences** with the sliders button. Under Reading & translation, **Display in** chooses the on-screen text language; **Read in** chooses the spoken output language. Each list offers **38 local translation variants**, including regional choices, plus **Original language**. Both settings are saved independently.",
         "Click the speaker button to read from the current passage. During capture, reading follows new system speech automatically. Speaker headings and microphone speech are not read. Speech uses the default Apple voice rate; there is no speed control.",
-        "While MyWizard reads during capture, original system playback is muted to avoid two voices at once, but system audio remains captured. Click the speaker button again to stop reading and restore original audio. An audio interruption or stopping capture also stops reading.",
+        "While MyWizard reads during capture, original playback from captured applications is muted to avoid two voices at once, but their audio remains captured. Newly active applications are included automatically; their first brief sound can be audible before capture attaches. Click the speaker button again to stop reading and restore original audio. An audio interruption or stopping capture also stops reading.",
         "Display translation does not change the source-language TXT export. If a translation is pending or fails, source text can remain visible. Installed language models are required for translation.",
         "Translation languages and the 30 transcription variants are independent lists. Regional choices are preserved in translation requests, but Apple must support the source/target pair. Text already in the same language and script is kept without dialect rewriting. Simplified and Traditional Chinese are kept distinct; direct conversion between these scripts is not supported by Apple Translation on this Mac. Reading prefers installed voices for the selected region and can reuse compatible voices if necessary. An available translation model does not guarantee a regional reading voice; add voices in System Settings → Accessibility → Read & Speak if needed. German output is standard German, not Swiss dialect."
       ]
@@ -106,7 +106,8 @@
       "id": "troubleshooting",
       "title": "Troubleshooting",
       "paragraphs": [
-        "**No text appears:** check that recording has started, there is no audio interruption, a system application is playing speech, the source language matches the speech, and system audio and speech permissions are enabled. Speaking only into your microphone does not add live text; your voice appears in the final export.",
+        "**No text appears:** check that recording has started, there is no audio interruption, a system application has activated its audio output and is playing speech, the source language matches the speech, and system audio and speech permissions are enabled. Speaking only into your microphone does not add live text; your voice appears in the final export.",
+        "**Zoom remains on Connecting:** capture now attaches to applications only after their audio output is active. If a connection still stalls, stop MyWizard and retry Zoom; keep the app open and report the order of actions and approximate time so the audio startup can be diagnosed.",
         "**My own voice is missing:** make sure the microphone button was enabled when you spoke, allow microphone access, then wait for export preparation. Check the complete TXT export rather than only the live transcript.",
         "**A known voice keeps a numbered label:** check that the name is listed under Preferences → Speakers and that no voice memory warning is shown. Allow several clear turns without overlap. If it remains unrecognized, choose the matching invited person, or type the beginning of the saved name when no participant list is available, then save to confirm additional samples for this call. Use a different full name for a different person; names are unique in voice memory.",
         "**Original sound is missing:** stop read-aloud with the speaker button. If capture was interrupted after a device change, reconnect your device and choose Retry audio.",

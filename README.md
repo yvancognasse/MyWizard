@@ -170,6 +170,14 @@ Preferences → Text exports selects the persistent TXT destination. The filenam
 
 TXT is UTF-8, retains session order and speaker names, and is written before automatic audio cleanup. A failed save never triggers audio deletion. Changing display translation never replaces the source-language export.
 
+## Audio startup compatibility
+
+System capture uses an explicit stereo mix of applications with active output, monitored through Core Audio process-list/output-running notifications and a 500 ms reconciliation scan while capture is armed. The scan handles missing or early notifications whose new value is not yet readable. Input-only and idle clients are not tapped. New outputs settle briefly (50 ms); process IDs are removed when output stops, and no global tap or bundle-based process restoration is used. The aggregate does not wait for a tapped application's first audio (`TapAutoStart` is false). This removes the startup dependency that blocked Zoom in `AudioDeviceStart` when MyWizard started first.
+
+Start may therefore wait without a system-audio device until an application begins playback, while microphone recording and the recording timer continue. Sources that start or stop rebuild only the system tap, retaining the recording. Presentation-time gaps are mapped to the same wall clock for live words, speaker intervals and exports. The first fraction of a second of a new source can be missed. Reading remembers its mute state across source changes; MyWizard's own playback and helper instances remain excluded.
+
+`MYWIZARD_AUDIO_STARTUP_CHECK=1 .build/MyWizard.app/Contents/MacOS/MyWizard` starts an isolated tap and opens physical input/output from separate test clients, first before any test output, then while a new external output is being captured. It uses silent local playback, a bounded client deadline, saves no microphone PCM, joins no meetings and restores all test resources. `MYWIZARD_TAP_CHECK=1` separately verifies real PCM, mute/unmute and exclusion of MyWizard speech with synthetic playback; run when no meeting or other playback is active.
+
 ## Verification
 
 Live transcript performance: finalized display paragraphs are cached, with affected suffixes rebuilt after speaker corrections. Export text is assembled on demand. Recognition and read-aloud stay immediate while live visual updates are coalesced over 80 ms. The transcript renders rows lazily; search still indexes the complete displayed transcript and realizes offscreen rows before scrolling to the exact occurrence. Periodic backups assemble snapshots on the writer actor and skip unchanged document/metadata revisions; final Stop snapshots remain authoritative.

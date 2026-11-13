@@ -32,6 +32,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var helpPanel: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if ProcessInfo.processInfo.environment["MYWIZARD_AUDIO_STARTUP_CLIENT"] == "1" {
+            Task {
+                do { try await AudioStartupCheck.runClient(); exit(EXIT_SUCCESS) }
+                catch { print("AUDIO STARTUP CLIENT FAILED: \(error)"); exit(EXIT_FAILURE) }
+            }
+            return
+        }
+        if ProcessInfo.processInfo.environment["MYWIZARD_AUDIO_STARTUP_CHECK"] == "1" {
+            Task {
+                do { try await AudioStartupCheck.run(); exit(EXIT_SUCCESS) }
+                catch { print("AUDIO STARTUP CHECK FAILED: \(error)"); exit(EXIT_FAILURE) }
+            }
+            return
+        }
         if ProcessInfo.processInfo.environment["MYWIZARD_SPEAKER_NAMING_PREVIEW"] == "1" {
             let window = NSWindow(contentViewController: NSHostingController(rootView: SpeakerNamingPreview()))
             window.title = "Speaker naming check"

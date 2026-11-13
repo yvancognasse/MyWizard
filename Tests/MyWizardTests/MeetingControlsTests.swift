@@ -86,6 +86,30 @@ struct MeetingControlsTests {
         #expect(saved.id == recording.id)
     }
 
+    @Test @MainActor func sourceRestartKeepsWordAndSpeakerTimeWithoutManualPause() async throws {
+        let timeline = CaptureTimeline()
+        timeline.reset(origin: 100)
+        var source: FakeTap?
+        let capture = SystemAudioCapture(timeline: timeline, makeTap: {
+            let tap = FakeTap(); source = tap; return tap
+        })
+        let (_, input) = AsyncStream<AnalyzerInput>.makeStream()
+        try await capture.start(format: MeetingRecording.format, continuation: input, onLevel: { _ in }, onError: { _ in })
+        let pcm = try #require(AVAudioPCMBuffer(pcmFormat: MeetingRecording.format, frameCapacity: 8_000))
+        pcm.frameLength = 8_000
+        pcm.floatChannelData![0].initialize(repeating: 0, count: 8_000)
+        source?.deliver(pcm, at: 101)
+        source?.deliver(pcm, at: 111) // Same capture, new system source after silence.
+        let words = timeline.alignWords([.init(text: "before", start: 0, end: 0.5),
+                                         .init(text: "after", start: 0.5, end: 1)], source: .systemAudio)
+        #expect(words.map(\.start) == [1, 11])
+        #expect(words.map(\.end) == [1.5, 11.5])
+        let speakers = timeline.alignSystemSpeakers(.init(intervals: [.init(slot: 0, start: 0, end: 1)], processedThrough: 1))
+        #expect(speakers.intervals == [.init(slot: 0, start: 1, end: 1.5), .init(slot: 0, start: 11, end: 11.5)])
+        await capture.stop()
+        input.finish()
+    }
+
     @Test @MainActor func recoveryIgnoresRetiredMetadataAndSkipsAnActiveWriter() async throws {
         let root = temporaryRoot()
         defer { try? FileManager.default.removeItem(at: root) }

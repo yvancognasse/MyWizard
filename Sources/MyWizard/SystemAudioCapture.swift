@@ -21,6 +21,7 @@ final class SystemAudioCapture: NSObject, @unchecked Sendable {
     private var meterFrames = 0
     private var meterPeak: Double = 0
     private var recording: MeetingRecording?
+    private var previousBufferEnd: Double?
 
     @MainActor
     init(timeline: CaptureTimeline, makeTap: (@MainActor () -> any SystemAudioTapControlling)? = nil) {
@@ -54,6 +55,7 @@ final class SystemAudioCapture: NSObject, @unchecked Sendable {
             self.systemClock = AnalyzerSampleClock(sampleRate: CMTimeScale(format.sampleRate))
             self.meterFrames = 0
             self.meterPeak = 0
+            self.previousBufferEnd = nil
         }
         do { try resume() }
         catch { await stop(); throw error }
@@ -136,6 +138,10 @@ final class SystemAudioCapture: NSObject, @unchecked Sendable {
                 meterFrames = 0
                 meterPeak = 0
             }
+            // Source membership can rebuild the process tap without ending the
+            // meeting. Preserve wall-clock gaps in words and speaker intervals.
+            if let end = previousBufferEnd, presentationTime - end > 0.02 { timeline.beginSystemSegment() }
+            previousBufferEnd = presentationTime + Double(pcm.frameLength) / pcm.format.sampleRate
             let converted = try converter.convert(pcm)
             try recording?.append(converted, track: .system, time: presentationTime)
             if converted.frameLength > 0 {
