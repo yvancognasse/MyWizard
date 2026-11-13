@@ -32,6 +32,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var helpPanel: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if ProcessInfo.processInfo.environment["MYWIZARD_SPEAKER_NAMING_PREVIEW"] == "1" {
+            let window = NSWindow(contentViewController: NSHostingController(rootView: SpeakerNamingPreview()))
+            window.title = "Speaker naming check"
+            window.isReleasedWhenClosed = false
+            window.center()
+            helpPanel = window
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
         // Isolated help preview: no meeting model, audio capture or model downloads.
         if ProcessInfo.processInfo.environment["MYWIZARD_HELP_PREVIEW"] == "1" {
             showHelpPanel()

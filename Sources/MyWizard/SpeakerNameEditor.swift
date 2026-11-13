@@ -20,24 +20,22 @@ struct SpeakerNameEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Rename \(SpeakerIdentity.heading(speaker))").font(.headline)
-            if !suggestions.isEmpty {
+            if !suggestions.isEmpty, speaker != SpeakerIdentity.microphone {
                 Menu("Choose an invited person") {
                     ForEach(suggestions, id: \.self) { person in
                         Button(person) { name = person }
                     }
                 }
             }
-            if !savedNames.isEmpty, speaker != SpeakerIdentity.microphone {
-                Menu("Choose a saved voice") {
-                    ForEach(savedNames, id: \.self) { person in
-                        Button(person) { name = person }
-                    }
-                }
+            if suggestions.isEmpty, speaker != SpeakerIdentity.microphone {
+                SpeakerNameCompletionField(text: $name, names: savedNames, submit: commit)
+                    .frame(height: 24)
+            } else {
+                TextField("Name", text: $name)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($nameIsFocused)
+                    .onSubmit { commit() }
             }
-            TextField("Name", text: $name)
-                .textFieldStyle(.roundedBorder)
-                .focused($nameIsFocused)
-                .onSubmit { commit() }
             Text("The first name applies to all passages for this speaker. Changing an assigned name applies from this passage onward, including saved text; earlier passages keep their names. With enough clear speech, the name is remembered automatically on this Mac for future meetings. Leave empty to restore \(SpeakerIdentity.heading(speaker)).")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -51,7 +49,7 @@ struct SpeakerNameEditor: View {
         }
         .padding(20)
         .frame(width: 320)
-        .onAppear { nameIsFocused = true }
+        .onAppear { if !suggestions.isEmpty || speaker == SpeakerIdentity.microphone { nameIsFocused = true } }
     }
 
     private func commit() {

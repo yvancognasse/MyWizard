@@ -22,10 +22,31 @@ struct CalendarMeeting: Codable, Equatable, Identifiable, Sendable {
     static func names(_ values: [String]) -> [String] {
         var seen = Set<String>()
         return values.compactMap { value in
-            let name = value.trimmingCharacters(in: .whitespacesAndNewlines)
-            return !name.isEmpty && seen.insert(name.lowercased()).inserted ? name : nil
+            let name = VoiceMemory.displayName(value)
+            return !name.isEmpty && seen.insert(VoiceMemory.nameKey(name)).inserted ? name : nil
         }.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     }
+
+    // Starts within five minutes take precedence over an earlier ongoing event.
+    // Otherwise prefer the most recently started active event, then a just-ended
+    // event. Equal best candidates require an explicit choice.
+    static func current(in meetings: [CalendarMeeting], at now: Date, tolerance: TimeInterval = 300) -> CalendarMeeting? {
+        let valid = meetings.filter { $0.start < $0.end }
+        let starting = valid.filter { abs($0.start.timeIntervalSince(now)) <= tolerance && $0.end > now }
+        if !starting.isEmpty { return uniqueClosest(starting, distance: { abs($0.start.timeIntervalSince(now)) }) }
+        let active = valid.filter { $0.start <= now && now < $0.end }
+        if !active.isEmpty { return uniqueClosest(active, distance: { now.timeIntervalSince($0.start) }) }
+        let ended = valid.filter { $0.end <= now && now.timeIntervalSince($0.end) <= tolerance }
+        return uniqueClosest(ended, distance: { now.timeIntervalSince($0.end) })
+    }
+
+    private static func uniqueClosest(_ meetings: [CalendarMeeting], distance: (CalendarMeeting) -> TimeInterval) -> CalendarMeeting? {
+        let ranked = meetings.sorted { distance($0) < distance($1) }
+        guard let first = ranked.first,
+              ranked.count == 1 || abs(distance(first) - distance(ranked[1])) > 1 else { return nil }
+        return first
+    }
+
 }
 
 @MainActor
@@ -42,31 +63,50 @@ final class CalendarMeetings: ObservableObject {
         error = nil
         defer { isLoading = false }
         do {
-            if EKEventStore.authorizationStatus(for: .event) == .notDetermined {
-                _ = try await store.requestFullAccessToEvents()
-            }
-            guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else {
-                error = "Allow calendar access in System Settings → Privacy & Security → Calendars → MyWizard, then refresh. Recording remains available without calendar access."
-                return
-            }
             let start = Calendar.current.startOfDay(for: day)
             guard let end = Calendar.current.date(byAdding: .day, value: 1, to: start) else { return }
-            let predicate = store.predicateForEvents(withStart: start, end: end, calendars: nil)
-            meetings = store.events(matching: predicate).filter { !$0.isAllDay }.map { event in
-                let people = (event.attendees ?? []) + (event.organizer.map { [$0] } ?? [])
-                return CalendarMeeting(id: "\(event.calendarItemIdentifier)|\(event.startDate.timeIntervalSince1970)",
-                    title: event.title?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? "Untitled meeting",
-                    start: event.startDate, end: event.endDate, calendar: event.calendar.title,
-                    invitees: CalendarMeeting.names(people.compactMap { person in
-                        person.name?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
-                            ?? (person.url.scheme?.lowercased() == "mailto"
-                                ? String(person.url.absoluteString.dropFirst(7)).removingPercentEncoding : nil)
-                    }))
-            }.sorted { $0.start < $1.start }
+            meetings = try await read(from: start, to: end)
+
         } catch {
             self.error = "Cannot read Apple Calendar: \(error.localizedDescription)"
         }
     }
+
+    func currentCandidates(at now: Date) async -> CalendarLookupResult {
+        do {
+            let meetings = try await read(from: now.addingTimeInterval(-300), to: now.addingTimeInterval(300))
+            return CalendarLookupResult(meetings: meetings)
+        } catch {
+            return CalendarLookupResult(meetings: [], message: error.localizedDescription)
+        }
+    }
+
+    private func read(from start: Date, to end: Date) async throws -> [CalendarMeeting] {
+        if EKEventStore.authorizationStatus(for: .event) == .notDetermined {
+            _ = try await store.requestFullAccessToEvents()
+        }
+        guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else {
+            throw TranscriptionError.message("Calendar access is unavailable. Choose Calendar and allow access in System Settings → Privacy & Security → Calendars → MyWizard. Recording continues without a calendar event.")
+        }
+        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: nil)
+        return store.events(matching: predicate).filter { !$0.isAllDay }.map { event in
+            let people = (event.attendees ?? []) + (event.organizer.map { [$0] } ?? [])
+            return CalendarMeeting(id: "\(event.calendarItemIdentifier)|\(event.startDate.timeIntervalSince1970)",
+                title: event.title?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? "Untitled meeting",
+                start: event.startDate, end: event.endDate, calendar: event.calendar.title,
+                invitees: CalendarMeeting.names(people.compactMap { person in
+                    person.name?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+                        ?? (person.url.scheme?.lowercased() == "mailto"
+                            ? String(person.url.absoluteString.dropFirst(7)).removingPercentEncoding : nil)
+                }))
+        }.sorted { $0.start < $1.start }
+    }
+
+}
+
+struct CalendarLookupResult: Sendable {
+    var meetings: [CalendarMeeting]
+    var message: String? = nil
 }
 
 private extension String {
@@ -90,7 +130,7 @@ struct CalendarMeetingPicker: View {
                     .disabled(calendar.isLoading)
                 Button("Refresh") { refreshID = UUID() }.disabled(calendar.isLoading)
             }
-            Text("Reads calendars synced with Apple Calendar. Invited people may not be present; assign their names to voices manually.")
+            Text("Start automatically looks for a meeting within five minutes. Choose an event here to override it, or Remove meeting to record without one. Invited names are suggestions; known voices can identify matching participants.")
                 .font(.caption).foregroundStyle(.secondary)
             if calendar.isLoading { ProgressView("Reading calendars…") }
             if let error = calendar.error {

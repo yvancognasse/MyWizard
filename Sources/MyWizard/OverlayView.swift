@@ -335,6 +335,10 @@ struct OverlayView: View {
 
                 }
             }
+            if let message = model.calendarAssociationMessage {
+                Text(message).font(.caption).foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
             if let reason = model.captureInterruption {
                 HStack {
                     Text("Audio interrupted — check your output device. " + reason)

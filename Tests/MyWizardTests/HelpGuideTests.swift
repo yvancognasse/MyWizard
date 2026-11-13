@@ -27,6 +27,9 @@ struct HelpGuideTests {
         #expect(guide.sections.contains { $0.id == "microphone" && $0.matches("Forget saved voices") && $0.matches("remembered automatically") && $0.matches("each saved name appears once") && $0.matches("unnamed profiles are removed") })
         #expect(guide.sections.contains { $0.id == "permissions" && $0.matches("unused language reservation") })
         #expect(guide.sections.contains { $0.id == "microphone" && $0.matches("earlier passages") && $0.matches("most recent displayed passage") })
+        #expect(guide.sections.contains { $0.id == "calendar" && $0.matches("five minutes") && $0.matches("manual choice") })
+        #expect(guide.sections.contains { $0.id == "microphone" && $0.matches("selected suffix") && $0.matches("Choose an invited person") })
+        #expect(!guide.sections.contains { $0.matches("Choose a saved voice") })
         #expect(!guide.sections.contains { $0.matches("unfindable-search-123456") })
         #expect(Set(guide.sections.map(\.id)).count == guide.sections.count)
     }

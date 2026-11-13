@@ -17,9 +17,9 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-	<string>10.78</string>
+	<string>10.79</string>
     <key>CFBundleVersion</key>
-	<string>96</string>
+	<string>97</string>
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleLocalizations</key>
@@ -27,7 +27,7 @@
     <key>LSMinimumSystemVersion</key>
     <string>26.0</string>
     <key>NSCalendarsFullAccessUsageDescription</key>
-    <string>MyWizard reads your synced calendars to let you choose a meeting title and invited people for your local transcription. It does not change calendar events.</string>
+    <string>MyWizard reads your synced calendars to find the current meeting when you start transcription and suggest invited people as speakers. You can also choose a meeting manually. It does not change calendar events.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
     <string>MyWizard transcribes system and microphone audio locally and displays the text in a floating window.</string>
     <key>NSMicrophoneUsageDescription</key>

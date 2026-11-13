@@ -5,7 +5,18 @@ import OSLog
 
 @MainActor
 final class TranscriptionModel: ObservableObject {
-    @Published var calendarMeeting: CalendarMeeting? { didSet { snapshotMetadataRevision &+= 1 } }
+    @Published var calendarMeeting: CalendarMeeting? {
+        didSet {
+            snapshotMetadataRevision &+= 1
+            if !isApplyingAutomaticCalendarMeeting { hasExplicitCalendarSelection = true }
+            calendarAssociationMessage = nil
+            applyCalendarSpeakerNames()
+        }
+    }
+    @Published private(set) var calendarAssociationMessage: String?
+    private var hasExplicitCalendarSelection = false
+    private var isApplyingAutomaticCalendarMeeting = false
+    private let calendarLookup: @MainActor (Date) async -> CalendarLookupResult
     @Published var codexProject: CodexProject? { didSet { snapshotMetadataRevision &+= 1 } }
     let reader: TranscriptReader
     let displayTranslation = DisplayTranslation()
@@ -146,7 +157,12 @@ final class TranscriptionModel: ObservableObject {
 
     init(preferences: any PreferenceStore = UserDefaults.standard, reader: TranscriptReader = TranscriptReader(), recordingRoot: URL = RecordedMeeting.root,
          systemCaptureFactory: (@MainActor (CaptureTimeline) -> SystemAudioCapture)? = nil,
-         voiceMemoryURL: URL? = nil) {
+         voiceMemoryURL: URL? = nil,
+         calendarLookup: (@MainActor (Date) async -> CalendarLookupResult)? = nil) {
+        self.calendarLookup = calendarLookup ?? { date in
+            if preferences is MemoryPreferences { return CalendarLookupResult(meetings: []) }
+            return await CalendarMeetings().currentCandidates(at: date)
+        }
         voiceMemory = VoiceMemory(url: voiceMemoryURL ?? (preferences is MemoryPreferences ? nil : VoiceMemory.defaultURL))
         rememberedVoices = voiceMemory.voices
         voiceMemoryMessage = voiceMemory.loadError
@@ -212,14 +228,43 @@ final class TranscriptionModel: ObservableObject {
                 document.speakerNumber(forSlot: other).flatMap { currentVoiceIDs[$0] }
             })
             if let match = voiceMemory.match(samples, excluding: excluded) {
+                let name = participantName(for: match)
                 currentVoiceIDs[number] = match.id
                 isApplyingVoiceName = true
-                speakerNames[number] = match.name
+                speakerNames[number] = name
                 isApplyingVoiceName = false
             }
         }
         rememberedVoices = voiceMemory.voices
         if let message = voiceMemory.loadError { voiceMemoryMessage = message }
+    }
+
+    private func participantName(for voice: RememberedVoice) -> String {
+        let participants = calendarMeeting?.invitees ?? []
+        guard !participants.isEmpty else { return voice.name }
+        return ParticipantVoiceLinks(participants: participants, voices: voiceMemory.voices).participantByVoiceID[voice.id] ?? voice.name
+    }
+
+    private func applyCalendarSpeakerNames() {
+        isApplyingVoiceName = true
+        defer { isApplyingVoiceName = false }
+        for (number, id) in currentVoiceIDs where !explicitlyNamedNumbers.contains(number) {
+            guard let voice = voiceMemory.voices.first(where: { $0.id == id }) else { continue }
+            speakerNames[number] = participantName(for: voice)
+        }
+    }
+
+    // Automatic selection runs only at Start. An explicit choice (including
+    // Remove meeting) wins even if the calendar query is still awaiting access.
+    func associateCurrentCalendarMeeting(at now: Date = Date()) async {
+        guard !hasExplicitCalendarSelection else { return }
+        let result = await calendarLookup(now)
+        guard !hasExplicitCalendarSelection else { return }
+        isApplyingAutomaticCalendarMeeting = true
+        calendarMeeting = CalendarMeeting.current(in: result.meetings, at: now)
+        isApplyingAutomaticCalendarMeeting = false
+        calendarAssociationMessage = result.message ?? (!result.meetings.isEmpty && calendarMeeting == nil
+            ? "No single calendar event could be selected. Choose Calendar to select your meeting." : nil)
     }
 
     private func persistVoiceNames(changed numbers: Set<Int>) {
@@ -240,7 +285,10 @@ final class TranscriptionModel: ObservableObject {
         guard !voiceLearningSuppressed, !forgottenVoiceNumbers.contains(number),
               let samples = voiceSamplesByNumber[number] else { return }
         do {
-            let name = speakerNames[number] ?? ""
+            let entered = speakerNames[number] ?? ""
+            let links = ParticipantVoiceLinks(participants: calendarMeeting?.invitees ?? [], voices: voiceMemory.voices)
+            let linkedID = links.voiceIDByParticipantKey[VoiceMemory.nameKey(entered)]
+            let name = voiceMemory.voices.first { $0.id == linkedID }?.name ?? entered
             let alreadySaved = voiceMemory.voices.contains { VoiceMemory.nameKey($0.name) == VoiceMemory.nameKey(name) }
             if let voice = try voiceMemory.remember(samples, name: name) {
                 currentVoiceIDs[number] = voice.id
@@ -362,6 +410,7 @@ final class TranscriptionModel: ObservableObject {
         forgottenVoiceNumbers = []
         document.clear()
         calendarMeeting = nil
+        hasExplicitCalendarSelection = false
         codexProject = nil
         recoveryLease = nil
         displayTranslation.reset()
@@ -756,6 +805,8 @@ final class TranscriptionModel: ObservableObject {
         statusMessage = "Preparing local transcription…"
 
         do {
+            await associateCurrentCalendarMeeting()
+            guard sessionID == id else { throw CancellationError() }
             if includesMicrophone, !(await MicrophoneAuthorization.request()) {
                 throw TranscriptionError.message("Allow MyWizard in System Settings > Privacy & Security > Microphone, or turn off Include microphone in Preferences to use system audio only.")
             }
