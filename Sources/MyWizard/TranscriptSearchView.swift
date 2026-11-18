@@ -19,7 +19,8 @@ struct SearchableTranscriptText: View {
                 Text(AttributedString(value[split...])).id("search-result-\(match.id)")
             } else { Text(value) }
         }
-        .font(.system(size: fontSize, weight: .medium, design: .rounded))
+        .font(.system(size: fontSize))
+        .lineSpacing(5)
         .textSelection(.enabled)
     }
 

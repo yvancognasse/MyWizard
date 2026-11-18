@@ -162,10 +162,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
-        .frame(minWidth: 1040, maxWidth: .infinity, minHeight: 260, maxHeight: .infinity)
         .environment(\.locale, Locale(identifier: "en"))
         let panel = TranscriptPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 1060, height: 320),
+            contentRect: NSRect(x: 0, y: 0, width: 1100, height: 620),
             styleMask: [.borderless, .resizable],
             backing: .buffered,
             defer: false
@@ -174,7 +173,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let hosting = NSHostingView(rootView: view)
         hosting.sizingOptions = []
         panel.contentView = hosting
-        panel.minSize = NSSize(width: 1040, height: 260)
+        panel.minSize = NSSize(width: 900, height: 360)
+        panel.appearance = NSAppearance(named: .aqua)
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
@@ -183,7 +183,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.isMovableByWindowBackground = true
         panel.hidesOnDeactivate = false
         if !panel.setFrameUsingName("MyWizardOverlay") { panel.center() }
-        panel.setContentSize(NSSize(width: max(panel.frame.width, 1040), height: max(panel.frame.height, 260)))
+        panel.setContentSize(NSSize(width: max(panel.frame.width, 900), height: max(panel.frame.height, 360)))
+        // A saved overlay position can leave the new footer below the screen.
+        // Keep the restored full view inside the current desktop work area.
+        if let screen = panel.screen ?? NSScreen.main {
+            let visible = screen.visibleFrame.insetBy(dx: 8, dy: 8)
+            var frame = panel.frame
+            frame.size.width = min(frame.width, visible.width)
+            frame.size.height = min(frame.height, visible.height)
+            frame.origin.x = min(max(frame.minX, visible.minX), visible.maxX - frame.width)
+            frame.origin.y = min(max(frame.minY, visible.minY), visible.maxY - frame.height)
+            panel.setFrame(frame, display: false)
+        }
         panel.setFrameAutosaveName("MyWizardOverlay")
         self.panel = panel
         showPanel()
