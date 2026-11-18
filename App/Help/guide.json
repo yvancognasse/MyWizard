@@ -1,5 +1,5 @@
 {
-  "reviewedVersion": "10.80",
+  "reviewedVersion": "10.81",
   "sections": [
     {
       "id": "quick-start",
@@ -64,7 +64,7 @@
         "Open **Preferences** with the sliders button. Under Reading & translation, **Display in** chooses the on-screen text language; **Read in** chooses the spoken output language. Each list offers **38 local translation variants**, including regional choices, plus **Original language**. Both settings are saved independently.",
         "Click the speaker button to read from the current passage. During capture, reading follows new system speech automatically. Speaker headings and microphone speech are not read. Speech uses the default Apple voice rate; there is no speed control.",
         "While MyWizard reads during capture, original playback from captured applications is muted to avoid two voices at once, but their audio remains captured. Newly active applications are included automatically; their first brief sound can be audible before capture attaches. Click the speaker button again to stop reading and restore original audio. An audio interruption or stopping capture also stops reading.",
-        "Display translation does not change the source-language TXT export. If a translation is pending or fails, source text can remain visible. Installed language models are required for translation.",
+        "Display translation does not change the source-language TXT export. The latest completed translation stays visible while new text is translated or after a translation error. When first translating or changing the display language, the display can remain empty until the first translation is ready. Installed language models are required for translation.",
         "Translation languages and the 30 transcription variants are independent lists. Regional choices are preserved in translation requests, but Apple must support the source/target pair. Text already in the same language and script is kept without dialect rewriting. Simplified and Traditional Chinese are kept distinct; direct conversion between these scripts is not supported by Apple Translation on this Mac. Reading prefers installed voices for the selected region and can reuse compatible voices if necessary. An available translation model does not guarantee a regional reading voice; add voices in System Settings → Accessibility → Read & Speak if needed. German output is standard German, not Swiss dialect."
       ]
     },
@@ -74,7 +74,7 @@
       "paragraphs": [
         "Click **Find** or press **⌘F** in the transcript window. Search matches the full displayed transcript, including paragraphs outside the visible area and any displayed translation, ignoring case and accents. Matches are highlighted; the selected occurrence is orange.",
         "Use Enter or **⌘G** for the next match and **⇧⌘G** for the previous match. Searching pauses automatic following so you can read the result.",
-        "Scrolling up also pauses live following. Click **Latest** to return to the newest text and resume following, or scroll back to the bottom. Live display updates are grouped in short batches to keep long transcripts responsive; recording and read-aloud continue independently."
+        "Scrolling up also pauses live following. Click **Latest** to return to the newest text and resume following, or scroll back to the bottom. Live display updates are grouped in short batches to keep long transcripts responsive; recording and read-aloud continue independently. While following, the view stays at the newest text as recognition corrects phrases or speaker labels change, including when the text becomes shorter."
       ]
     },
     {

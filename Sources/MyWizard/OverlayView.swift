@@ -16,6 +16,8 @@ struct OverlayView: View {
     @State private var followsLiveTranscript = true
     @State private var isTranscriptAtBottom = true
     @State private var isUserScrollingTranscript = false
+    @State private var transcriptContentSize = CGSize.zero
+    @State private var transcriptPosition = ScrollPosition(edge: .bottom)
     @State private var speakerToRename: SpeakerSelection?
     @State private var showsSearch = false
     @State private var searchQuery = ""
@@ -27,8 +29,6 @@ struct OverlayView: View {
         let id: Int
         let paragraph: TranscriptParagraph
     }
-
-    private let bottomAnchor = "transcript-bottom"
 
     private var emptyTranscriptMessage: String {
         let language = model.displayLanguage == .original
@@ -426,6 +426,7 @@ struct OverlayView: View {
                                                                  selected: selectedSearchID, fontSize: fontSize)
                                     }
                                     .frame(maxWidth: .infinity, alignment: .leading)
+                                    .fixedSize(horizontal: false, vertical: true)
                                     .shadow(color: Color(nsColor: .windowBackgroundColor).opacity(transparency), radius: 2)
                                     .padding(.bottom, 12)
                                     .id(paragraph.id)
@@ -440,10 +441,30 @@ struct OverlayView: View {
                                     }
                                 }
                             }
-                            Color.clear.frame(height: 1).id(bottomAnchor)
+                        }
+                        .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+                            transcriptContentSize = size
                         }
                     }
                     .scrollIndicators(.hidden)
+                    .scrollPosition($transcriptPosition)
+                    .defaultScrollAnchor(.bottom, for: .initialOffset)
+                    // Recognition and speaker corrections can shrink lazy rows.
+                    // Preserve the bottom edge during that relayout, rather than
+                    // leaving the viewport at an obsolete (sometimes empty) offset.
+                    .defaultScrollAnchor(followsLiveTranscript ? .bottom : nil, for: .sizeChanges)
+                    .task(id: transcriptContentSize) {
+                        // scrollTo from the paragraphs onChange used the previous
+                        // layout's lazy height estimate. Wait for measured geometry.
+                        await Task.yield()
+                        guard !Task.isCancelled, followsLiveTranscript,
+                              !isUserScrollingTranscript else { return }
+                        var transaction = Transaction()
+                        transaction.disablesAnimations = true
+                        withTransaction(transaction) {
+                            transcriptPosition.scrollTo(edge: .bottom)
+                        }
+                    }
                     .onScrollPhaseChange { _, phase, _ in
                         isUserScrollingTranscript = phase == .interacting || phase == .decelerating
                         if isUserScrollingTranscript && !isTranscriptAtBottom {
@@ -463,7 +484,6 @@ struct OverlayView: View {
                     }
                     .onChange(of: displayTranslation.paragraphs) {
                         refreshSearch()
-                        if followsLiveTranscript { scroll.scrollTo(bottomAnchor, anchor: .bottom) }
                     }
                     .onChange(of: selectedSearchID) {
                         guard let match = searchMatches.indices.contains(searchIndex) ? searchMatches[searchIndex] : nil else { return }
@@ -477,7 +497,7 @@ struct OverlayView: View {
                             Button {
                                 followsLiveTranscript = true
                                 withAnimation(.easeOut(duration: 0.2)) {
-                                    scroll.scrollTo(bottomAnchor, anchor: .bottom)
+                                    transcriptPosition.scrollTo(edge: .bottom)
                                 }
                             } label: {
                                 Label("Latest", systemImage: "arrow.down")

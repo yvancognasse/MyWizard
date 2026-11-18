@@ -21,6 +21,7 @@ struct HelpGuideTests {
             format: nil) as? [String: Any])
         #expect(guide.reviewedVersion == appInfo["CFBundleShortVersionString"] as? String)
         #expect(guide.sections.contains { $0.id == "navigation" && $0.matches("OUTSIDE THE VISIBLE AREA") })
+        #expect(guide.sections.contains { $0.id == "navigation" && $0.matches("text becomes shorter") })
         #expect(guide.sections.contains { $0.id == "troubleshooting" && $0.matches("five seconds") })
         #expect(guide.sections.contains { $0.matches("⇧⌘H") })
         #expect(guide.sections.contains { $0.id == "export" && $0.matches("successful copy notice") })
