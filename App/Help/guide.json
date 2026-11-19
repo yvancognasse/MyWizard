@@ -1,5 +1,5 @@
 {
-  "reviewedVersion": "10.82",
+  "reviewedVersion": "10.83",
   "sections": [
     {
       "id": "quick-start",
@@ -74,7 +74,7 @@
       "paragraphs": [
         "Click **Find** or press **⌘F** in the transcript window. Search matches the full displayed transcript, including paragraphs outside the visible area and any displayed translation, ignoring case and accents. Matches are highlighted; the selected occurrence is orange.",
         "Use Enter or **⌘G** for the next match and **⇧⌘G** for the previous match. Searching pauses automatic following so you can read the result.",
-        "Scrolling up also pauses live following. Click **Jump to live** to return to the newest text and resume following, or scroll back to the bottom. Live display updates are grouped in short batches to keep long transcripts responsive; recording and read-aloud continue independently. While following, the view stays at the newest text as recognition corrects phrases or speaker labels change, including when the text becomes shorter."
+        "Scrolling up also pauses live following. Click **Jump to live** to return to the newest text and resume following, or scroll back to the bottom. Live display updates are grouped in short batches to keep long transcripts responsive; recording and read-aloud continue independently. While following, the view stays at the newest text as recognition corrects phrases or speaker labels change, including when the text becomes shorter. Automatic following also stays stable across long meetings with many speaker turns and window resizing."
       ]
     },
     {

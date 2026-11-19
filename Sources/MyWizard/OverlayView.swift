@@ -163,7 +163,11 @@ struct OverlayView: View {
                 GeometryReader { geometry in
                     ScrollViewReader { scroll in
                         ScrollView(.vertical) {
-                            LazyVStack(alignment: .leading, spacing: 0) {
+                            // Rows change height and speaker boundaries during recognition.
+                            // A lazy stack estimates offscreen heights; bottom scrolling
+                            // then realizes different rows and changes that estimate again.
+                            // Use exact geometry to avoid a layout/scroll feedback loop.
+                            VStack(alignment: .leading, spacing: 0) {
                                 if model.paragraphs.isEmpty {
                                     Text(emptyTranscriptMessage)
                                         .font(.system(size: fontSize, weight: .medium, design: .default))
@@ -209,8 +213,8 @@ struct OverlayView: View {
                                         .padding(.bottom, 24)
                                         .id(paragraph.id)
                                         .task(id: selectedSearchID) {
-                                            // A lazy row must exist before its nested
-                                            // exact-match anchor can be scrolled to.
+                                            // Wait for the selected occurrence's nested
+                                            // anchor to be laid out.
                                             guard let match = searchMatches.first(where: { $0.id == selectedSearchID }),
                                                 match.paragraphID == paragraph.id
                                             else { return }
@@ -230,13 +234,13 @@ struct OverlayView: View {
                         .scrollIndicators(.hidden)
                         .scrollPosition($transcriptPosition)
                         .defaultScrollAnchor(.bottom, for: .initialOffset)
-                        // Recognition and speaker corrections can shrink lazy rows.
+                        // Recognition and speaker corrections can shrink rows.
                         // Preserve the bottom edge during that relayout, rather than
                         // leaving the viewport at an obsolete (sometimes empty) offset.
                         .defaultScrollAnchor(followsLiveTranscript ? .bottom : nil, for: .sizeChanges)
                         .task(id: transcriptContentSize) {
-                            // scrollTo from the paragraphs onChange used the previous
-                            // layout's lazy height estimate. Wait for measured geometry.
+                            // Follow measured content changes, never height estimates.
+                            // The non-lazy stack gives one stable size for this revision.
                             await Task.yield()
                             guard !Task.isCancelled, followsLiveTranscript,
                                 !isUserScrollingTranscript
@@ -276,8 +280,8 @@ struct OverlayView: View {
                                     ? searchMatches[searchIndex] : nil
                             else { return }
                             followsLiveTranscript = false
-                            // Realize an offscreen paragraph first; its row task
-                            // then scrolls to the precise occurrence inside it.
+                            // Move to the paragraph; its row task then scrolls
+                            // to the precise occurrence inside it.
                             scroll.scrollTo(match.paragraphID, anchor: .top)
                         }
                         .overlay(alignment: .bottomTrailing) {
