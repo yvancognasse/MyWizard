@@ -33,6 +33,7 @@ struct HelpGuideTests {
         #expect(guide.sections.contains { $0.id == "recording" && $0.matches("Start recording before joining Zoom") && $0.matches("brief initial gap") })
         #expect(guide.sections.contains { $0.id == "translation" && $0.matches("Newly active applications") })
         #expect(guide.sections.contains { $0.id == "appearance" && $0.matches("Background transparency") && $0.matches("100%") && $0.matches("More actions") })
+        #expect(guide.sections.contains { $0.id == "appearance" && $0.matches("empty header space") && $0.matches("including while recording") })
         #expect(guide.sections.contains { $0.id == "translation" && $0.matches("Display") && $0.matches("Read in") })
         #expect(!guide.sections.contains { $0.matches("Choose a saved voice") })
         #expect(!guide.sections.contains { $0.matches("unfindable-search-123456") })

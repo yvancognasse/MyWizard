@@ -1,5 +1,5 @@
 {
-  "reviewedVersion": "10.83",
+  "reviewedVersion": "10.84",
   "sections": [
     {
       "id": "quick-start",
@@ -98,7 +98,7 @@
       "paragraphs": [
         "The full view uses a light appearance. **Settings** at the bottom right opens appearance, export, reading and speaker options. Adjust **Background transparency** from 0% (opaque white) to 100% (fully transparent). Only the background fades; text and controls stay opaque. Your existing transparency and text-size choices are preserved and remembered. Readability at high transparency depends on the windows behind MyWizard.",
         "The header contains Start recording or Stop & Save…, recording status and duration, and More actions (⋯). The next row selects a calendar meeting and Codex project. Below the transcript, Spoken selects the transcription language, Display selects translation, and Read aloud and Find remain directly available. The bottom row controls the MyWizard microphone, labelled On or Off · Export only, and opens Settings. More actions also offers Save transcript…, Open export folder, Clear meeting and project, and Clear transcript.",
-        "Drag the floating window to reposition it, or resize it using its edges. The window stays above ordinary app windows and is kept within the visible desktop area when reopened. Opening MyWizard, clicking its window or returning from the Dock activates MyWizard and displays its menus in the macOS menu bar.",
+        "Drag the MyWizard title or the empty header space to its right to move the floating window, including while recording. Transcript text remains selectable. Resize using the window edges or the bottom-right resize handle. The window stays above ordinary app windows and is kept within the visible desktop area when reopened. Opening MyWizard, clicking its window or returning from the Dock activates MyWizard and displays its menus in the macOS menu bar.",
         "Choose **More actions (⋯) → Hide MyWizard** to hide the transcript while MyWizard keeps running. Click MyWizard in the Dock to show it again. **More actions (⋯) → Quit MyWizard** or **⌘Q** quits the app; during an active recording, MyWizard asks whether to continue recording or quit.",
         "Open **MyWizard → About MyWizard** for the version, build date and bundle number. Open **Help → MyWizard Help** or press **⇧⌘H** for this guide. Use Search help or **⌘F** here to filter topics."
       ]

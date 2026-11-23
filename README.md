@@ -1,5 +1,7 @@
 # MyWizard
 
+Version 10.84 restores reliable window movement through the MyWizard title and empty header space, including during recording. This native drag target leaves transcript selection and header controls available.
+
 Version 10.83 fixes a live transcript layout loop that could saturate the main thread and grow memory during long, multi-speaker meetings. Paragraphs use exact heights instead of lazy offscreen estimates, so following the latest text settles after recognition and window-size changes. Search, selectable text and the full transcript remain available.
 
 Version 10.82 reorganizes the floating transcript into a light full view: recording and More actions at the top, meeting/project context, and language, reading, search and microphone controls below the transcript. Settings retains the existing background-transparency and text-size preferences; only the white background fades. Stop & Save… keeps the existing stop/prepare/save workflow. Secondary save, clear, folder, hide and quit actions are in More actions (⋯).

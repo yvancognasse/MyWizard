@@ -397,7 +397,8 @@ struct OverlayView: View {
             Text("MyWizard")
                 .font(.system(size: 20, weight: .semibold))
                 .accessibilityAddTraits(.isHeader)
-            Spacer()
+                .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+                .overlay { WindowDragHandle().accessibilityHidden(true) }
             if model.isCapturing || model.isTransitioning {
                 HStack(spacing: 8) {
                     Circle().fill(model.captureInterruption == nil ? Color.red : Color.orange)
