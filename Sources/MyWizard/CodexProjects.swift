@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import SQLite3
 
 struct CodexProject: Codable, Equatable, Identifiable, Sendable {
     let id: String
@@ -26,7 +27,33 @@ enum CodexProjectCatalog {
     }
 
     static func load(from url: URL = stateURL) throws -> [CodexProject] {
-        try parse(Data(contentsOf: url))
+        let databaseURL = url.deletingPathExtension().appendingPathExtension("sqlite")
+        // Codex now persists desktop settings in SQLite; its JSON file can remain
+        // on disk indefinitely without receiving new projects. Never merge it back.
+        if FileManager.default.fileExists(atPath: databaseURL.path) {
+            return try loadDatabase(databaseURL)
+        }
+        return try parse(Data(contentsOf: url))
+    }
+
+    private static func loadDatabase(_ url: URL) throws -> [CodexProject] {
+        let failure = TranscriptionError.message("Codex's current local project list could not be read. Open Codex and refresh. Its storage format may have changed.")
+        var database: OpaquePointer?
+        guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+            if let database { sqlite3_close(database) }
+            throw failure
+        }
+        defer { sqlite3_close(database) }
+        sqlite3_busy_timeout(database, 1_000)
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(database,
+            "SELECT value FROM settings WHERE scope = 'global' AND key = 'local-projects'",
+            -1, &statement, nil) == SQLITE_OK else { throw failure }
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_step(statement) == SQLITE_ROW,
+              let value = sqlite3_column_text(statement, 0) else { throw failure }
+        let local = try JSONSerialization.jsonObject(with: Data(String(cString: value).utf8))
+        return try parse(JSONSerialization.data(withJSONObject: ["local-projects": local]))
     }
 
     static func parse(_ data: Data) throws -> [CodexProject] {

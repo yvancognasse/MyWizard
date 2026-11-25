@@ -1,8 +1,42 @@
 import Foundation
 import Testing
+import SQLite3
 @testable import MyWizard
 
 struct CodexProjectTests {
+    @Test func currentDatabaseReplacesStaleJSONAndRefreshes() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let json = root.appendingPathComponent(".codex-global-state.json")
+        try Data(#"{"local-projects":{"old":{"name":"Old project","rootPaths":[]}}}"#.utf8).write(to: json)
+        #expect(try CodexProjectCatalog.load(from: json).map(\.id) == ["old"])
+        let databaseURL = root.appendingPathComponent(".codex-global-state.sqlite")
+        var database: OpaquePointer?
+        #expect(sqlite3_open(databaseURL.path, &database) == SQLITE_OK)
+        defer { sqlite3_close(database) }
+        func execute(_ sql: String) throws {
+            #expect(sqlite3_exec(database, sql, nil, nil, nil) == SQLITE_OK)
+        }
+        try execute("PRAGMA journal_mode=WAL")
+        try execute("CREATE TABLE settings (scope TEXT, key TEXT, value TEXT, PRIMARY KEY(scope, key))")
+        try execute(#"INSERT INTO settings VALUES ('global', 'local-projects', '{"garrett":{"name":"Garrett Motion","rootPaths":["/tmp/Garrett Motion"]}}')"#)
+        // Other accounts/settings must not be included in the desktop catalog.
+        try execute(#"INSERT INTO settings VALUES ('other', 'local-projects', '{"wrong":{"name":"Wrong account"}}')"#)
+        let projects = try CodexProjectCatalog.load(from: json)
+        #expect(projects.map(\.name) == ["Garrett Motion"])
+        #expect(projects.first?.path == "/tmp/Garrett Motion")
+        try execute(#"UPDATE settings SET value = '{}' WHERE scope = 'global'"#)
+        #expect(try CodexProjectCatalog.load(from: json).isEmpty)
+        // Missing or invalid current data must not resurrect the stale JSON list.
+        try execute("DELETE FROM settings WHERE scope = 'global'")
+        #expect(throws: (any Error).self) { try CodexProjectCatalog.load(from: json) }
+        try execute("INSERT INTO settings VALUES ('global', 'local-projects', 'invalid')")
+        #expect(throws: (any Error).self) { try CodexProjectCatalog.load(from: json) }
+        try execute("DROP TABLE settings")
+        #expect(throws: (any Error).self) { try CodexProjectCatalog.load(from: json) }
+    }
+
     @Test func catalogUsesProjectIdentityAndFirstRoot() throws {
         let data = Data(#"{"local-projects":{"b":{"name":"Zoo","rootPaths":[]},"a":{"name":"Alpha","rootPaths":["/tmp/one","/tmp/two"]},"bad":42},"unrelated":"ignored"}"#.utf8)
         let projects = try CodexProjectCatalog.parse(data)

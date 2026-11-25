@@ -1,5 +1,7 @@
 # MyWizard
 
+Version 10.85 fixes missing Codex projects after Codex moved its desktop catalog to SQLite. MyWizard reads the current catalog in read-only mode, uses JSON only on older installations without that database, and reports an error instead of silently using stale projects.
+
 Version 10.84 restores reliable window movement through the MyWizard title and empty header space, including during recording. This native drag target leaves transcript selection and header controls available.
 
 Version 10.83 fixes a live transcript layout loop that could saturate the main thread and grow memory during long, multi-speaker meetings. Paragraphs use exact heights instead of lazy offscreen estimates, so following the latest text settles after recognition and window-size changes. Search, selectable text and the full transcript remain available.
