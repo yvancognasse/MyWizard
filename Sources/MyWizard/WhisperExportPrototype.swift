@@ -14,6 +14,7 @@ struct WhisperExportParagraph: Codable, Sendable {
     var text: String
     var startTime: Double? = nil
     var speakerName: String? = nil
+    var language: String? = nil
 }
 
 struct WhisperExportResult: Codable, Sendable {

@@ -61,6 +61,27 @@ final class SystemAudioCapture: NSObject, @unchecked Sendable {
         catch { await stop(); throw error }
     }
 
+    // Swap only recognition. The tap, recording, speaker stream and sample clock
+    // continue unchanged; every buffer belongs to exactly one recognizer.
+    @MainActor
+    func replaceTranscriptionInput(_ continuation: AsyncStream<AnalyzerInput>.Continuation,
+                                   language: String,
+                                   at hostTime: Double = AVAudioTime.seconds(forHostTime: mach_absolute_time())) throws -> Double {
+        try queue.sync {
+            guard let recording, let input else {
+                throw TranscriptionError.message("No active audio stream to change language.")
+            }
+            let boundary = max(0, (previousBufferEnd ?? hostTime) - recording.hostTimeOrigin)
+            // A silent system output may not have delivered buffers for minutes.
+            // Microphone export switches now, rather than retroactively at its last sound.
+            let microphoneBoundary = max(0, max(previousBufferEnd ?? hostTime, hostTime) - recording.hostTimeOrigin)
+            try recording.changeLanguage(to: language, at: microphoneBoundary)
+            self.input = continuation
+            input.finish()
+            return boundary
+        }
+    }
+
     @MainActor
     func pause() {
         tapGeneration = nil

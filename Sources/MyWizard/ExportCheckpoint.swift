@@ -46,6 +46,7 @@ struct ExportCheckpoint: Codable {
         let id: UUID
         let language: String
         let microphone: Bool
+        let languageChanges: [SpokenLanguageChange]?
         let muteEvents: [AudioMuteEvent]
         let tracks: [FileStamp?]
     }
@@ -58,7 +59,7 @@ struct ExportCheckpoint: Codable {
 
     static func inputKey(_ meeting: RecordedMeeting) throws -> String {
         try digest(Inputs(revision: revision, id: meeting.id, language: meeting.manifest.language,
-            microphone: meeting.manifest.microphone, muteEvents: meeting.manifest.mutedSystem,
+            microphone: meeting.manifest.microphone, languageChanges: meeting.manifest.languageChanges, muteEvents: meeting.manifest.mutedSystem,
             tracks: try RecordedTrack.allCases.map { try FileStamp.read(meeting.audio($0)) }))
     }
 

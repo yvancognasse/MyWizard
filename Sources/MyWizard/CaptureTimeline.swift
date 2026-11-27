@@ -82,11 +82,11 @@ final class CaptureTimeline: @unchecked Sendable {
             defer { lock.unlock() }
             return words.map {
                 TimedText(text: $0.text, start: systemTime($0.start),
-                          end: max(systemTime($0.start), systemTime($0.end, ending: true)), source: source)
+                          end: max(systemTime($0.start), systemTime($0.end, ending: true)), source: source, language: $0.language)
             }
         }
         let offset = offset(for: source)
-        return words.map { TimedText(text: $0.text, start: $0.start + offset, end: $0.end + offset, source: source) }
+        return words.map { TimedText(text: $0.text, start: $0.start + offset, end: $0.end + offset, source: source, language: $0.language) }
     }
 
     private func systemTime(_ sample: Double, ending: Bool = false) -> Double {

@@ -20,17 +20,18 @@ struct LiveParagraphCache: Sendable {
 
     mutating func update(committed: [TimedText], provisional: [TimedText],
                          hasLabels: Bool, language: String?,
+                         languageAt: ((Double) -> String?)? = nil,
                          name: (Int?, Double) -> String? = { _, _ in nil },
                          speaker: (TimedText) -> Int?) -> [TranscriptParagraph] {
         for index in processed..<committed.count {
             Self.append(committed[index], at: index, to: &entries,
-                   hasLabels: hasLabels, language: language, name: name, speaker: speaker)
+                   hasLabels: hasLabels, language: committed[index].language ?? languageAt?(committed[index].start) ?? language, name: name, speaker: speaker)
         }
         processed = committed.count
         var visible = entries
         for (index, word) in provisional.enumerated() {
             Self.append(word, at: processed + index, to: &visible,
-                   hasLabels: hasLabels, language: language, name: name, speaker: speaker)
+                   hasLabels: hasLabels, language: word.language ?? languageAt?(word.start) ?? language, name: name, speaker: speaker)
         }
         return visible.map(\.paragraph)
             .filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -44,7 +45,7 @@ struct LiveParagraphCache: Sendable {
     private static func append(_ word: TimedText, at index: Int, to entries: inout [Entry],
                         hasLabels: Bool, language: String?, name: (Int?, Double) -> String?, speaker: (TimedText) -> Int?) {
         let number = speaker(word)
-        if let last = entries.last, last.paragraph.speaker == number, last.paragraph.speakerName == name(number, word.start) {
+        if let last = entries.last, last.paragraph.speaker == number, last.paragraph.language == language, last.paragraph.speakerName == name(number, word.start) {
             entries[entries.count - 1].paragraph.text += word.text
             entries[entries.count - 1].latestEnd = max(last.latestEnd, word.end)
         } else {

@@ -4,12 +4,14 @@ import Speech
 @MainActor
 final class PreparedSpeech {
     let transcriber: SpeechTranscriber
+    let language: String
     let analyzer: SpeechAnalyzer
     private var localeLease: SpeechLocaleReservations.Lease?
     let format: AVAudioFormat
 
-    private init(transcriber: SpeechTranscriber, analyzer: SpeechAnalyzer, format: AVAudioFormat,
+    private init(language: String, transcriber: SpeechTranscriber, analyzer: SpeechAnalyzer, format: AVAudioFormat,
                  localeLease: SpeechLocaleReservations.Lease) {
+        self.language = language
         self.transcriber = transcriber
         self.analyzer = analyzer
         self.format = format
@@ -24,7 +26,7 @@ final class PreparedSpeech {
         }
     }
 
-    static func load(language: String, downloads: Bool,
+    static func load(language: String, downloads: Bool, inputFormat: AVAudioFormat? = nil,
                      status: @escaping @MainActor (String) -> Void = { _ in }) async throws -> PreparedSpeech? {
         guard SpeechTranscriber.isAvailable else {
             throw TranscriptionError.message("Apple's transcription engine is not available on this Mac.")
@@ -65,7 +67,8 @@ final class PreparedSpeech {
                 try await installation.downloadAndInstall()
             }
             try Task.checkCancellation()
-            guard let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber]) else {
+            let availableFormat = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber])
+            guard let format = inputFormat ?? availableFormat else {
                 throw TranscriptionError.message("No audio format is available for transcription.")
             }
             status("Loading the Apple speech model…")
@@ -73,7 +76,7 @@ final class PreparedSpeech {
             do {
                 try await analyzer.prepareToAnalyze(in: format)
                 try Task.checkCancellation()
-                return PreparedSpeech(transcriber: transcriber, analyzer: analyzer, format: format, localeLease: lease)
+                return PreparedSpeech(language: language, transcriber: transcriber, analyzer: analyzer, format: format, localeLease: lease)
             } catch {
                 await analyzer.cancelAndFinishNow()
                 throw error

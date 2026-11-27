@@ -35,7 +35,7 @@ enum ExportParagraphPolish {
             let supportedAudible = audible >= max(0.12, (block.end - block.start) * 0.1)
                 && audibleCoverage >= audible * 0.8
             guard coverage >= (block.end - block.start) * 0.8 || supportedAudible else { return block }
-            return LiveTranscriptBlock(text: block.text, speaker: identity, start: block.start, end: block.end)
+            return LiveTranscriptBlock(text: block.text, speaker: identity, start: block.start, end: block.end, speakerName: block.speakerName, language: block.language)
         }
         // Fill a brief hole only when independently supported turns on BOTH
         // sides agree. Do not chain inferred labels across a long unknown run.
@@ -61,7 +61,7 @@ enum ExportParagraphPolish {
                   witnesses.contains(where: { $0.end > last.end && $0.start <= last.end + 0.4 }) else { continue }
             for position in start..<index {
                 let block = resolved[position]
-                result[position] = LiveTranscriptBlock(text: block.text, speaker: identity, start: block.start, end: block.end)
+                result[position] = LiveTranscriptBlock(text: block.text, speaker: identity, start: block.start, end: block.end, speakerName: block.speakerName, language: block.language)
             }
         }
         // Word blocks often extend beyond the actual sound (roughly one second
@@ -87,7 +87,7 @@ enum ExportParagraphPolish {
                       nearby(block.start - 0.25, block.end + 0.25)
                         .allSatisfy({ numbers[$0.slot] == identity }) else { continue }
                 result[position] = LiveTranscriptBlock(text: block.text, speaker: identity,
-                                                       start: block.start, end: block.end)
+                                                       start: block.start, end: block.end, speakerName: block.speakerName, language: block.language)
             }
         }
         return result
@@ -101,14 +101,14 @@ enum ExportParagraphPolish {
                punctuation.unicodeScalars.allSatisfy({ CharacterSet.punctuationCharacters.contains($0) || CharacterSet.whitespacesAndNewlines.contains($0) }),
                let previousIndex = result.lastIndex(where: { $0.speaker != SpeakerIdentity.microphone }) {
                 let previous = result[previousIndex]
-                result[previousIndex] = WhisperExportParagraph(speaker: previous.speaker, text: previous.text + block.text, startTime: previous.startTime, speakerName: previous.speakerName)
+                result[previousIndex] = WhisperExportParagraph(speaker: previous.speaker, text: previous.text + block.text, startTime: previous.startTime, speakerName: previous.speakerName, language: previous.language)
                 continue
             }
-            if let previous = result.last, let speaker = block.speaker, previous.speaker == speaker, previous.speakerName == block.speakerName {
+            if let previous = result.last, let speaker = block.speaker, previous.speaker == speaker, previous.speakerName == block.speakerName, previous.language == block.language {
                 // Insert only a missing separator; never rewrite punctuation or names.
                 let separator = previous.text.last?.isWhitespace == false && block.text.first?.isWhitespace == false ? " " : ""
-                result[result.count - 1] = WhisperExportParagraph(speaker: speaker, text: previous.text + separator + block.text, startTime: previous.startTime, speakerName: previous.speakerName)
-            } else { result.append(WhisperExportParagraph(speaker: block.speaker, text: block.text, startTime: block.start, speakerName: block.speakerName)) }
+                result[result.count - 1] = WhisperExportParagraph(speaker: speaker, text: previous.text + separator + block.text, startTime: previous.startTime, speakerName: previous.speakerName, language: previous.language)
+            } else { result.append(WhisperExportParagraph(speaker: block.speaker, text: block.text, startTime: block.start, speakerName: block.speakerName, language: block.language)) }
         }
         return result
     }

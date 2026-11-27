@@ -18,6 +18,7 @@ struct TimedText: Sendable, Equatable, Codable {
     let start: Double
     let end: Double
     var source: TranscriptSource = .systemAudio
+    var language: String? = nil
 }
 
 struct TranscriptParagraph: Identifiable, Equatable, Codable, Sendable {
@@ -72,7 +73,7 @@ private struct TranscriptTrack: Sendable {
 
     mutating func receive(_ incoming: [TimedText], isFinal: Bool) {
         let words = incoming.filter { $0.end > clearedThrough }.map { word in
-            TimedText(text: word.text, start: word.start, end: word.end, source: source)
+            TimedText(text: word.text, start: word.start, end: word.end, source: source, language: word.language)
         }
         if isFinal {
             committedCharacterCount += words.reduce(0) { $0 + $1.text.count } + (words.isEmpty ? 0 : 1)
@@ -114,6 +115,7 @@ struct SpeakerTranscript: Sendable {
     private var reservesOwnSpeaker = false
     private var detectsSpeakers = false
     private var language: String?
+    private var languageChanges: [SpokenLanguageChange] = []
     private var latestSystemFinalStart: Int?
     private var liveParagraphCache = LiveParagraphCache()
     private var systemWordsAreOrdered = true
@@ -160,8 +162,30 @@ struct SpeakerTranscript: Sendable {
         sessionFirstNumber = nextNumber
         self.detectsSpeakers = detectsSpeakers
         self.language = language
+        languageChanges = []
         liveParagraphCache = LiveParagraphCache()
         systemWordsAreOrdered = true
+    }
+
+    // Finalization normally commits this tail. Retain the visible words even
+    // if the retiring engine fails, before a new engine can replace provisional text.
+    mutating func preservePendingSystemWords() {
+        guard !systemTrack.volatile.isEmpty else { return }
+        receive(systemTrack.volatile, isFinal: true)
+    }
+
+    mutating func changeLanguage(to selected: String, at time: Double) {
+        revision &+= 1
+        languageChanges.append(.init(time: time, language: selected))
+        liveParagraphCache.invalidate(from: time)
+    }
+
+    private func language(at time: Double) -> String? {
+        SpokenLanguageChange.language(at: time, initial: language, changes: languageChanges)
+    }
+
+    private func language(for word: TimedText) -> String? {
+        word.language ?? language(at: word.start)
     }
 
     mutating func clear() {
@@ -240,7 +264,7 @@ struct SpeakerTranscript: Sendable {
         }
         finalExport = analysis.paragraphs?.enumerated().map { index, paragraph in
             TranscriptParagraph(id: index, text: paragraph.text, speaker: paragraph.speaker, hasSpeakerLabel: true,
-                language: language, source: paragraph.speaker == SpeakerIdentity.microphone ? .microphone : .systemAudio,
+                language: paragraph.language ?? language(at: paragraph.startTime ?? 0), source: paragraph.speaker == SpeakerIdentity.microphone ? .microphone : .systemAudio,
                 startTime: paragraph.startTime, speakerName: paragraph.speakerName)
         }
     }
@@ -281,9 +305,13 @@ struct SpeakerTranscript: Sendable {
         let numbers = slotNumbers
         let detects = detectsSpeakers
         let changes = nameChanges
+        let spokenChanges = languageChanges
+        let initialLanguage = language
         let current = liveParagraphCache.update(committed: systemTrack.committed,
             provisional: systemTrack.volatile, hasLabels: detectsSpeakers || reservesOwnSpeaker,
-            language: language, name: { speaker, time in
+            language: language, languageAt: { time in
+                SpokenLanguageChange.language(at: time, initial: initialLanguage, changes: spokenChanges)
+            }, name: { speaker, time in
                 Self.name(for: speaker, at: time, changes: changes)
             }) { word in
                 detects ? Self.speakerSlot(for: word, bySlot: bySlot).flatMap { numbers[$0] } : nil
@@ -304,12 +332,12 @@ struct SpeakerTranscript: Sendable {
             // whole microphone reply, never word-by-word alternation.
             let sentenceEnded = previous?.text.trimmingCharacters(in: .whitespacesAndNewlines).last
                 .map { ".!?…".contains($0) } ?? false
-            if let previous, previous.speaker == speaker, previous.speakerName == Self.name(for: speaker, at: word.start, changes: nameChanges), !sentenceEnded, word.start - previous.end < 0.8 {
+            if let previous, previous.speaker == speaker, previous.language == language(for: word), previous.speakerName == Self.name(for: speaker, at: word.start, changes: nameChanges), !sentenceEnded, word.start - previous.end < 0.8 {
                 blocks[blocks.count - 1].text += word.text
                 blocks[blocks.count - 1].end = max(previous.end, word.end)
             } else {
                 blocks.append(.init(text: word.text, speaker: speaker, start: word.start, end: word.end,
-                    speakerName: Self.name(for: speaker, at: word.start, changes: nameChanges)))
+                    speakerName: Self.name(for: speaker, at: word.start, changes: nameChanges), language: language(for: word)))
             }
         }
         return LiveTranscriptSnapshot(words: words, blocks: blocks,
@@ -390,12 +418,13 @@ struct SpeakerTranscript: Sendable {
             let slot = detectsSpeakers && !isOwn ? Self.speakerSlot(for: word, bySlot: bySlot) : nil
             let number = isOwn ? SpeakerIdentity.microphone : slot.flatMap { slotNumbers[$0] }
             if result.count > firstCurrent, result.last?.speaker == number, result.last?.source == word.source,
+               result.last?.language == language(for: word),
                result.last?.speakerName == Self.name(for: number, at: word.start, changes: nameChanges) {
                 result[result.count - 1].text += word.text
             } else {
                 result.append(TranscriptParagraph(id: result.count, text: word.text,
                                                   speaker: number, hasSpeakerLabel: detectsSpeakers || reservesOwnSpeaker || isOwn,
-                                                  language: language, source: word.source, startTime: word.start,
+                                                  language: language(for: word), source: word.source, startTime: word.start,
                                                   speakerName: Self.name(for: number, at: word.start, changes: nameChanges)))
             }
         }

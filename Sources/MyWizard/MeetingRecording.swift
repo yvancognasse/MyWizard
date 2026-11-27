@@ -12,6 +12,7 @@ struct RecordingManifest: Codable, Sendable {
     var state = "recording"
     var mutedSystem: [AudioMuteEvent] = []
     var failure: String?
+    var languageChanges: [SpokenLanguageChange]? = nil
 }
 
 struct AudioMuteEvent: Codable, Sendable {
@@ -110,6 +111,16 @@ final class MeetingRecording: @unchecked Sendable {
         for track in RecordedTrack.allCases where track != .microphone || microphone {
             files[track] = try Self.makeFile(meeting.audio(track))
             converters[track] = AudioConverter(outputFormat: Self.format)
+        }
+    }
+
+    // Called at the capture queue boundary before routing audio to the new engine.
+    func changeLanguage(to language: String, at time: Double) throws {
+        try queue.sync {
+            let previous = meeting.manifest
+            meeting.manifest.languageChanges = (previous.languageChanges ?? []) + [.init(time: time, language: language)]
+            do { try meeting.saveManifest() }
+            catch { meeting.manifest = previous; throw error }
         }
     }
 

@@ -1,5 +1,7 @@
 # MyWizard
 
+Version 10.86 (build 104) shows the enabled **Microphone: On** label in red and allows changing **Spoken** during recording. The old recognizer continues while the requested model prepares; only recognition input is swapped at a serialized audio-buffer boundary. The capture tap, recording, sample timeline and speaker detector remain running. The previous recognizer is finalized before new results enter the document. Earlier paragraphs retain their language for translation and reading. Language events are saved in the session manifest and included in the export cache key; microphone export recognizes each time segment in its selected language. Preparation failures retain the current recognizer. Change between sentences and wait until preparation completes: recognition context restarts, and a sentence crossing the switch can lose accuracy.
+
 Version 10.85 fixes missing Codex projects after Codex moved its desktop catalog to SQLite. MyWizard reads the current catalog in read-only mode, uses JSON only on older installations without that database, and reports an error instead of silently using stale projects.
 
 Version 10.84 restores reliable window movement through the MyWizard title and empty header space, including during recording. This native drag target leaves transcript selection and header controls available.
@@ -201,6 +203,9 @@ Run the signed app with `MYWIZARD_PIPELINE_CHECK=1` and `MYWIZARD_PIPELINE_FIXTU
 `MYWIZARD_PERFORMANCE_CHECK=1 swift test -c release --filter TranscriptionPerformanceTests` measures long-meeting text work, not end-to-end model accuracy.
 
 `MYWIZARD_MEETING_CONTROLS_CHECK=1 .build/MyWizard.app/Contents/MacOS/MyWizard` checks output-change recovery with real speech/speaker engines and simulated audio taps. A retry on healthy capture must have no effect. It verifies that paused capture accepts no samples, a failed resume stays paused, retry retains the same recording folder, and snapshots survive Stop. It opens no audio devices and uses isolated preferences and temporary files. Unit tests also cover paused timeline mapping, CAF silence gaps, accent/Unicode search and recovery leases. An actual AirPods/output switch remains a separate hardware validation.
+
+For a bilingual replay without audio devices, generate synthetic `french.aiff` (including “projet”) and `english.aiff` (including “project”) in a disposable fixture folder, then run `MYWIZARD_LANGUAGE_SWITCH_CHECK=1 MYWIZARD_LANGUAGE_FIXTURES=/path/to/fixtures .build/MyWizard.app/Contents/MacOS/MyWizard`. The diagnostic uses real Apple models with a simulated tap, checks French → English → French, preserved earlier text, per-paragraph languages, one tap/recording, persisted language events and bilingual microphone export timestamps. It may download missing speech/speaker models and uses temporary recording folders.
+
 
 `MYWIZARD_TAP_CHECK=1 .build/MyWizard.app/Contents/MacOS/MyWizard` verifies system PCM capture through mute/unmute and exclusion of MyWizard output. Legacy echo/device diagnostics are opt-in compatibility investigations, not the normal capture path.
 

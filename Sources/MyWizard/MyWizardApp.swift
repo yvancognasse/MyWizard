@@ -61,6 +61,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             showHelpPanel()
             return
         }
+        if ProcessInfo.processInfo.environment["MYWIZARD_LANGUAGE_SWITCH_CHECK"] == "1" {
+            Task {
+                do { try await SpokenLanguageCheck.run(); exit(EXIT_SUCCESS) }
+                catch { print("SPOKEN LANGUAGE CHECK FAILED: \(error)"); exit(EXIT_FAILURE) }
+            }
+            return
+        }
         if ProcessInfo.processInfo.environment["MYWIZARD_MEETING_CONTROLS_CHECK"] == "1" {
             Task {
                 do { try await MeetingControlsCheck.run(); exit(EXIT_SUCCESS) }

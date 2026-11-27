@@ -20,6 +20,8 @@ struct HelpGuideTests {
             from: Data(contentsOf: repository.appendingPathComponent("App/Info.plist")),
             format: nil) as? [String: Any])
         #expect(guide.reviewedVersion == appInfo["CFBundleShortVersionString"] as? String)
+        #expect(guide.sections.contains { $0.id == "recording" && $0.matches("change language while recording") })
+        #expect(guide.sections.contains { $0.id == "microphone" && $0.matches("appears in red") })
         #expect(guide.sections.contains { $0.id == "navigation" && $0.matches("OUTSIDE THE VISIBLE AREA") })
         #expect(guide.sections.contains { $0.id == "navigation" && $0.matches("text becomes shorter") })
         #expect(guide.sections.contains { $0.id == "troubleshooting" && $0.matches("five seconds") })

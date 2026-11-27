@@ -55,7 +55,7 @@ struct MeetingControlsTests {
         let recording = try MeetingRecording(language: "en-US", microphone: false, detectSpeakers: true, root: root, origin: 100, onError: { _ in })
         let (audio, input) = AsyncStream<AnalyzerInput>.makeStream()
         let (speakers, speakerInput) = AsyncStream<[Float]>.makeStream()
-        try await capture.start(format: MeetingRecording.format, continuation: input, speakerInput: speakerInput,
+        try await capture.start(format: AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16_000, channels: 1, interleaved: false)!, continuation: input, speakerInput: speakerInput,
                                 recording: recording, onLevel: { _ in }, onError: { _ in })
         let pcm = try #require(AVAudioPCMBuffer(pcmFormat: MeetingRecording.format, frameCapacity: 8_000))
         pcm.frameLength = 8_000
@@ -94,7 +94,7 @@ struct MeetingControlsTests {
             let tap = FakeTap(); source = tap; return tap
         })
         let (_, input) = AsyncStream<AnalyzerInput>.makeStream()
-        try await capture.start(format: MeetingRecording.format, continuation: input, onLevel: { _ in }, onError: { _ in })
+        try await capture.start(format: AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16_000, channels: 1, interleaved: false)!, continuation: input, onLevel: { _ in }, onError: { _ in })
         let pcm = try #require(AVAudioPCMBuffer(pcmFormat: MeetingRecording.format, frameCapacity: 8_000))
         pcm.frameLength = 8_000
         pcm.floatChannelData![0].initialize(repeating: 0, count: 8_000)

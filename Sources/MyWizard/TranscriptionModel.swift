@@ -81,6 +81,13 @@ final class TranscriptionModel: ObservableObject {
             if isPrewarmingEnabled && !isCapturing && !isTransitioning { prewarmTranscription() }
         }
     }
+    @Published private(set) var isLanguageChanging = false
+    @Published private(set) var languageChangeMessage: String?
+    private var languageChangeTask: Task<Void, Never>?
+    private var languageChangeID: UUID?
+    private var retiringSpeech: PreparedSpeech?
+    private var retiringResults: Task<Void, Never>?
+
     @Published var readingLanguage: ReadingLanguage {
         didSet {
             preferences.set(readingLanguage.rawValue, forKey: "readingLanguage")
@@ -781,6 +788,108 @@ final class TranscriptionModel: ObservableObject {
         }
     }
 
+    func selectSpokenLanguage(_ selected: String) {
+        guard selected != language, TranscriptionLanguage(rawValue: selected) != nil,
+              !isLanguageChanging, !isTransitioning else { return }
+        guard isCapturing else { language = selected; return }
+        guard !isPaused else { return }
+        isLanguageChanging = true
+        languageChangeMessage = "Preparing \(TranscriptionLanguage(rawValue: selected)?.title ?? selected)… Current language remains active."
+        let operation = UUID()
+        languageChangeID = operation
+        languageChangeTask = Task { await changeSpokenLanguage(to: selected, operation: operation) }
+    }
+
+    private func changeSpokenLanguage(to selected: String, operation: UUID) async {
+        defer {
+            if languageChangeID == operation {
+                isLanguageChanging = false
+                languageChangeTask = nil
+                languageChangeID = nil
+                languageChangeMessage = nil
+            }
+        }
+        guard let id = sessionID, let old = preparedSpeech else { return }
+        var replacement: PreparedSpeech?
+        var switched = false
+        do {
+            replacement = try await PreparedSpeech.load(language: selected, downloads: true, inputFormat: old.format) { [weak self] message in
+                guard self?.languageChangeID == operation else { return }
+                self?.languageChangeMessage = "\(message) Current language remains active."
+            }
+            guard let next = replacement else { throw TranscriptionError.message("The new speech model could not be prepared.") }
+            try Task.checkCancellation()
+            guard sessionID == id, isCapturing, !isPaused else { throw CancellationError() }
+            let (sequence, continuation) = AsyncStream<AnalyzerInput>.makeStream(bufferingPolicy: .bufferingOldest(256))
+            try await next.analyzer.start(inputSequence: sequence)
+            try Task.checkCancellation()
+            guard sessionID == id, isCapturing, !isPaused else { throw CancellationError() }
+            let boundary = try capture.replaceTranscriptionInput(continuation, language: selected)
+            switched = true
+            let previousResults = resultsTask
+            retiringSpeech = old
+            retiringResults = previousResults
+            preparedSpeech = next
+            analyzer = next.analyzer
+            input = continuation
+            document.changeLanguage(to: selected, at: boundary)
+            language = selected
+            let drain = Task { [weak self] in
+                do { try await old.analyzer.finalizeAndFinishThroughEndOfInput() }
+                catch {
+                    if self?.sessionID == id {
+                        self?.errorMessage = "The previous language's last phrase could not finish. Recorded audio is preserved. \(error.localizedDescription)"
+                    }
+                }
+                await previousResults?.value
+                if self?.sessionID == id { self?.document.preservePendingSystemWords() }
+                await old.close()
+            }
+            // The new analyzer consumes audio immediately. Deliver its results
+            // only after the old tail, so provisional text cannot erase it.
+            resultsTask = consumeSpeech(next, session: id, after: drain)
+            languageChangeMessage = "Finishing the previous phrase… New language is active."
+            refreshTranscript()
+            await drain.value
+            guard sessionID == id else { return }
+            refreshTranscript()
+            retiringSpeech = nil
+            retiringResults = nil
+        } catch {
+            if !switched { await replacement?.close() }
+            if sessionID == id, !(error is CancellationError) {
+                errorMessage = "Could not change spoken language. The current language and recording continue. \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func consumeSpeech(_ prepared: PreparedSpeech, session id: UUID,
+                               startupTime: Double? = nil, after previous: Task<Void, Never>? = nil) -> Task<Void, Never> {
+        Task { [weak self] in
+            await previous?.value
+            do {
+                for try await result in prepared.transcriber.results {
+                    guard !Task.isCancelled, let self, self.sessionID == id else { return }
+                    let attributed = result.text
+                    let words = attributed.runs.map { run in
+                        let range = run.audioTimeRange ?? result.range
+                        return TimedText(text: String(attributed[run.range].characters),
+                                         start: range.start.seconds, end: range.end.seconds, language: prepared.language)
+                    }
+                    if self.lastResult == nil, let startupTime {
+                        Self.startupLogger.info("First text after \(ProcessInfo.processInfo.systemUptime - startupTime, privacy: .public)s from Start")
+                    }
+                    self.lastResult = Date()
+                    self.receiveTranscript(self.timeline.alignWords(words, source: .systemAudio), isFinal: result.isFinal,
+                                           coalescingDisplay: true)
+                }
+            } catch {
+                guard let self, self.preparedSpeech === prepared else { return }
+                await self.failed(error.localizedDescription, session: id)
+            }
+        }
+    }
+
     private func start() async {
         let startupTime = ProcessInfo.processInfo.systemUptime
         prewarmTranscription()
@@ -817,7 +926,6 @@ final class TranscriptionModel: ObservableObject {
                 }
             }) else { throw TranscriptionError.message("The speech model could not be prepared.") }
             self.preparedSpeech = prepared
-            let transcriber = prepared.transcriber
             let format = prepared.format
             let analyzer = prepared.analyzer
             Self.startupLogger.info("Apple ready after \(ProcessInfo.processInfo.systemUptime - startupTime, privacy: .public)s from Start")
@@ -825,27 +933,7 @@ final class TranscriptionModel: ObservableObject {
             guard sessionID == id else { throw CancellationError() }
             let (sequence, continuation) = AsyncStream<AnalyzerInput>.makeStream(bufferingPolicy: .bufferingOldest(256))
             input = continuation
-            resultsTask = Task { [weak self] in
-                do {
-                    for try await result in transcriber.results {
-                        guard let self, self.sessionID == id else { return }
-                        let attributed = result.text
-                        let words = attributed.runs.map { run in
-                            let range = run.audioTimeRange ?? result.range
-                            return TimedText(text: String(attributed[run.range].characters),
-                                             start: range.start.seconds, end: range.end.seconds)
-                        }
-                        if self.lastResult == nil {
-                            Self.startupLogger.info("First text after \(ProcessInfo.processInfo.systemUptime - startupTime, privacy: .public)s from Start")
-                        }
-                        self.lastResult = Date()
-                        self.receiveTranscript(self.timeline.alignWords(words, source: .systemAudio), isFinal: result.isFinal,
-                                               coalescingDisplay: true)
-                    }
-                } catch {
-                    await self?.failed(error.localizedDescription, session: id)
-                }
-            }
+            resultsTask = consumeSpeech(prepared, session: id, startupTime: startupTime)
             try await analyzer.start(inputSequence: sequence)
             // Live words and speaker identities are preserved in the export.
             var speakerInput: AsyncStream<[Float]>.Continuation?
@@ -981,6 +1069,11 @@ final class TranscriptionModel: ObservableObject {
         refreshTranscript()
         let snapshot = liveSnapshot()
         sessionID = nil
+        languageChangeTask?.cancel()
+        languageChangeTask = nil
+        languageChangeID = nil
+        isLanguageChanging = false
+        languageChangeMessage = nil
         microphoneActivationID = nil
         stopReading()
         reader.recording = nil
@@ -997,9 +1090,13 @@ final class TranscriptionModel: ObservableObject {
         input?.finish()
         input = nil
         resultsTask?.cancel()
+        retiringResults?.cancel()
+        await retiringSpeech?.close()
         if let preparedSpeech { await preparedSpeech.close() }
         else if let analyzer { await analyzer.cancelAndFinishNow() }
         preparedSpeech = nil
+        retiringSpeech = nil
+        retiringResults = nil
         if let recording {
             let saved = await recording.finish()
             recordings.append(saved)
@@ -1037,6 +1134,7 @@ final class TranscriptionModel: ObservableObject {
             Task { await self.microphoneFailed("No microphone audio was received. Check the input device in System Settings > Sound.", activation: activation, session: id) }
             return
         }
+        guard !isLanguageChanging else { return }
         guard let lastAudio, now.timeIntervalSince(lastAudio) < 3 else {
             audioLevel = 0
             statusMessage = "Waiting for system audio. Play spoken content; if no text appears, check Audio Recording permission."

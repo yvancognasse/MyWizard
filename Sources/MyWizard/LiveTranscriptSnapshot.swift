@@ -6,6 +6,7 @@ struct LiveTranscriptBlock: Codable, Sendable {
     let start: Double
     var end: Double
     var speakerName: String? = nil
+    var language: String? = nil
 }
 
 struct LiveTranscriptSnapshot: Codable, Sendable {
@@ -35,12 +36,12 @@ struct LiveTranscriptSnapshot: Codable, Sendable {
             let previous = microphoneBlocks.last
             let sentenceEnded = previous?.text.trimmingCharacters(in: .whitespacesAndNewlines).last
                 .map { ".!?…".contains($0) } ?? false
-            if let previous, word.start - previous.end < 0.8, !sentenceEnded {
+            if let previous, previous.language == word.language, word.start - previous.end < 0.8, !sentenceEnded {
                 microphoneBlocks[microphoneBlocks.count - 1].text += word.text
                 microphoneBlocks[microphoneBlocks.count - 1].end = max(previous.end, word.end)
             } else {
                 microphoneBlocks.append(.init(text: word.text, speaker: SpeakerIdentity.microphone,
-                    start: word.start, end: word.end))
+                    start: word.start, end: word.end, language: word.language))
             }
         }
         // Stable ordering: retain the original order for tied timestamps, with

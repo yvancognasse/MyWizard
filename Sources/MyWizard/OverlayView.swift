@@ -306,6 +306,14 @@ struct OverlayView: View {
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
             Divider()
+            if let message = model.languageChangeMessage {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 8)
+                    .accessibilityLabel(message)
+            }
             transcriptControls
             Divider()
             settingsBar
@@ -535,16 +543,21 @@ struct OverlayView: View {
 
     private var transcriptControls: some View {
         HStack(spacing: 16) {
-            Picker("Spoken", selection: $model.language) {
+            Picker("Spoken", selection: Binding(get: { model.language }, set: { model.selectSpokenLanguage($0) })) {
                 ForEach(TranscriptionLanguage.allCases, id: \.rawValue) { language in
                     Text(language.title).tag(language.rawValue)
                 }
             }
             .frame(maxWidth: 290)
             .help(
-                "Choose from 30 local transcription variants. Models may download after Start. Reading and translation languages are selected separately in Settings. German (Switzerland) does not guarantee recognition of Swiss dialects."
+                "Choose from 30 local transcription variants, including while recording. The current language stays active until the new model is ready. Change between sentences; models may need to download. Reading and translation languages are selected separately in Settings. German (Switzerland) does not guarantee recognition of Swiss dialects."
             )
-            .disabled(model.isCapturing || model.isTransitioning || readingIsBusy)
+            .disabled(model.isTransitioning || model.isLanguageChanging || model.isPaused || readingIsBusy)
+            if let message = model.languageChangeMessage {
+                ProgressView().controlSize(.small)
+                    .accessibilityLabel(message)
+                    .help(message)
+            }
             Picker("Display", selection: $model.displayLanguage) {
                 ForEach(ReadingLanguage.allCases, id: \.rawValue) { language in
                     Text(language.title).tag(language)
@@ -598,7 +611,7 @@ struct OverlayView: View {
                         : (model.includesMicrophone ? "Microphone: On" : "Microphone: Off"),
                     systemImage: model.includesMicrophone ? "mic.fill" : "mic.slash.fill"
                 )
-                .foregroundStyle(model.includesMicrophone ? Color.primary : Color.secondary)
+                .foregroundStyle(model.includesMicrophone ? Color.red : Color.secondary)
             }
             .disabled(model.isTransitioning || model.isMicrophoneChanging)
             .accessibilityLabel(

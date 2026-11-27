@@ -83,9 +83,9 @@ actor MeetingProcessor {
             echoEvidence = cleaned
             try Task.checkCancellation()
             if try hasSound(cleaned.audio) {
-                own = try await transcribeSelectedMicrophone(cleaned.audio, language: meeting.manifest.language) {
+                own = try await transcribeMultilingualMicrophone(cleaned.audio, manifest: meeting.manifest) {
                     meter.update(percent: 20 + Int(Double($0) * 0.74))
-                }.map { TimedText(text: $0.text, start: $0.start, end: $0.end, source: .microphone) }
+                }.map { TimedText(text: $0.text, start: $0.start, end: $0.end, source: .microphone, language: $0.language) }
                 mark("microphone recognition")
             }
             checkpoint.microphone = own
@@ -113,6 +113,33 @@ actor MeetingProcessor {
         try Task.checkCancellation()
         meter.finish()
         return result
+    }
+
+    nonisolated func transcribeMultilingualMicrophone(_ url: URL, manifest: RecordingManifest,
+        progress: @escaping @Sendable (Int) -> Void = { _ in }) async throws -> [TimedText] {
+        guard let changes = manifest.languageChanges, !changes.isEmpty else {
+            return try await transcribeSelectedMicrophone(url, language: manifest.language, progress: progress)
+        }
+        let file = try AVAudioFile(forReading: url)
+        let duration = Double(file.length) / file.processingFormat.sampleRate
+        let segments = try SpokenLanguageChange.segments(initial: manifest.language, changes: changes, duration: duration)
+        var words: [TimedText] = []
+        for segment in segments {
+            try Task.checkCancellation()
+            let temporary = FileManager.default.temporaryDirectory.appendingPathComponent("MyWizardLanguage-\(UUID()).caf")
+            defer { try? FileManager.default.removeItem(at: temporary) }
+            let mapping = try MicrophoneSpeechSelection.pack(url,
+                spans: [.init(start: segment.start, end: segment.end)], destination: temporary)
+            let recognized = try await transcribeSelectedMicrophone(temporary, language: segment.language) { percent in
+                progress(Int(100 * (segment.start + (segment.end - segment.start) * Double(percent) / 100) / max(duration, 0.001)))
+            }
+            guard let restored = MicrophoneSpeechSelection.restore(recognized, mapping: mapping) else {
+                throw TranscriptionError.message("Microphone timestamps could not be restored after a language change. Recorded audio is preserved.")
+            }
+            words.append(contentsOf: restored.map { TimedText(text: $0.text, start: $0.start, end: $0.end, source: .microphone, language: segment.language) })
+        }
+        progress(100)
+        return words
     }
 
     nonisolated func transcribeSelectedMicrophone(_ url: URL, language: String,
